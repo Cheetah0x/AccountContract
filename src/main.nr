@@ -4,8 +4,11 @@
 
 //they will have this account contract in their PXEs, so they can get the state of it and interact with it
 
+mod notes;
+mod test;
 
 use dep::aztec::macros::aztec;
+
 
 #[aztec]
 contract AccountGroup {
@@ -20,7 +23,7 @@ contract AccountGroup {
     use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
     use dep::aztec::macros::{storage::storage, functions::{private, initializer, view, noinitcheck}};
 
-    use crate::public_key_note::PublicKeyNote;
+    use crate::notes::public_key_note::PublicKeyNote;
 
     #[storage]
     struct Storage<Context> {
@@ -42,7 +45,7 @@ contract AccountGroup {
             signing_pub_key_y,
             this_keys.npk_m.hash()
         );
-        storage.signing_public_key.initalize(&mut pub_key_note).emit(
+        storage.signing_public_key.initialize(&mut pub_key_note).emit(
             encode_and_encrypt_note(
                 &mut context,
                 this_keys.ovpk_m,
@@ -67,8 +70,10 @@ contract AccountGroup {
     }
 
     #[contract_library_method]
-    fn is_valid_impl(_context: &mut PrivateContext, outer_hash: Field) -> bool {
-        // Load auth witness and format as an u8 array
+    fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
+        let storage = Storage::init(context);
+        let public_key = storage.signing_public_key.get_note();    
+            // Load auth witness and format as an u8 array
         let witness: [Field; 64] = unsafe {
             get_auth_witness(outer_hash)
         };
@@ -79,8 +84,8 @@ contract AccountGroup {
 
         // Verify signature using hardcoded public key
         std::schnorr::verify_signature(
-            public_key_x,
-            public_key_y,
+            public_key.x,
+            public_key.y,
             signature,
             outer_hash.to_be_bytes::<32>()
         )

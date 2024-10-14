@@ -1,12 +1,36 @@
 {
-  "name": "accountContract",
+  "name": "account_group_contract",
   "version": "1.0.0",
   "main": "index.js",
   "repository": "git@github.com:Cheetah0x/AccountContract.git",
   "author": "Cheetah0x <niallcheetham@gmail.com>",
   "license": "MIT",
   "private": true,
+  "scripts": {
+    "clean": "rm -rf ./src/artifacts ./target",
+    "codegen": "aztec codegen target --outdir src/artifacts",
+    "compile": "${AZTEC_NARGO:-aztec-nargo} compile",
+    "deploy": "node --loader ts-node/esm scripts/deploy.ts",
+    "get-block": "node --loader ts-node/esm scripts/getBlock.ts",
+    "test": "NODE_NO_WARNINGS=1 node --experimental-vm-modules $(yarn bin jest) --no-cache --runInBand --config jest.integration.config.json && aztec test",
+    "update": "aztec update --contract . && ./.github/scripts/update_contract.sh $(grep -oP 'tag\\s*=\\s*\"\\K[^\"]+' \"Nargo.toml\" | head -1)"
+  },
   "dependencies": {
-    "@shieldswap/wallet-sdk": "^0.55.1"
+    "@aztec/accounts": "0.57.0",
+    "@aztec/aztec.js": "0.57.0",
+    "@aztec/noir-contracts.js": "0.57.0",
+    "@types/node": "^22.5.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^22.5.1",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.4"
+  },
+  "jest": {
+    "testTimeout": 200000
   }
 }
