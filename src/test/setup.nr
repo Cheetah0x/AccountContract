@@ -12,6 +12,7 @@ use crate::AccountGroup;
 
 
 //this just does not work, will try using jest. 
+//got it deploying in jest, no idea how to do the same thing in the TXE, for deploy u need a wallet to depoly, cannot do that here
 
 unconstrained pub fn setup() -> (&mut TestEnvironment, AztecAddress, Field, Field) {
     let mut env = TestEnvironment::new();

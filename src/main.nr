@@ -4,8 +4,11 @@
 
 //they will have this account contract in their PXEs, so they can get the state of it and interact with it
 
+//joe mentionned something about setting it to a dud so that it cannot do anything,
+//need to figure out what he meant and how to do that.
+
 mod notes;
-mod test;
+// mod test;
 
 use dep::aztec::macros::aztec;
 
@@ -23,11 +26,12 @@ contract AccountGroup {
     use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
     use dep::aztec::macros::{storage::storage, functions::{private, initializer, view, noinitcheck}};
 
-    use crate::notes::public_key_note::PublicKeyNote;
+    use crate::notes::{public_key_note::PublicKeyNote, NewAddressNote::NewAddressNote};
 
     #[storage]
     struct Storage<Context> {
         signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
+        admin: PrivateImmutable<NewAddressNote, Context>,
     }
 
     //for SchnoorAccount contract
@@ -35,7 +39,7 @@ contract AccountGroup {
     //that is the idea. 
     #[private]
     #[initializer]
-    fn constructor(signing_pub_key_x: Field, signing_pub_key_y: Field) {
+    fn constructor(signing_pub_key_x: Field, signing_pub_key_y: Field, admin: AztecAddress) {
         let this = context.this_address();
         let this_keys = get_public_keys(this);
         //not emitting outgoing for msg_sender here to not have to register keys for the contract through which we deploy this (typically MultiCallEntryPoint).
@@ -53,6 +57,17 @@ contract AccountGroup {
                 this
             )
         );
+
+        let admin_keys = get_public_keys(admin);
+        let mut admin_address_note = NewAddressNote::new(admin, admin_keys.npk_m.hash());
+        storage.admin.initialize(&mut admin_address_note).emit(
+            encode_and_encrypt_note(
+                &mut context,
+                admin_keys.ovpk_m,
+                admin_keys.ivpk_m,
+                admin
+            )
+        );
     }
 
     // Note: If you globally change the entrypoint signature don't forget to update account_entrypoint.ts
@@ -60,6 +75,12 @@ contract AccountGroup {
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
         let actions = AccountActions::init(&mut context, is_valid_impl);
         actions.entrypoint(app_payload, fee_payload, cancellable);
+    }
+
+    #[private]
+    fn get_admin() -> pub AztecAddress {
+        let admin_note = storage.admin.get_note();
+        admin_note.address
     }
 
     #[private]

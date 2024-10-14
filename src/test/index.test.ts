@@ -1,60 +1,81 @@
 import {
-  // AccountGroupContract,
-  AccountGroupContractArtifact,
-} from "../artifacts/AccountGroup.js";
-import {
   AccountWallet,
   CompleteAddress,
-  ContractDeployer,
   createDebugLogger,
   Fr,
   PXE,
   waitForPXE,
-  TxStatus,
   createPXEClient,
-  getContractInstanceFromDeployParams,
   DebugLogger,
   GrumpkinScalar,
   Schnorr,
-  Contract,
   AccountManager,
   AuthWitness,
+  ContractInstanceWithAddress,
+  getContractInstanceFromDeployParams,
+  AztecAddress,
 } from "@aztec/aztec.js";
 import { type DeployAccountOptions } from '@aztec/aztec.js';
-import { getInitialTestAccountsWallets } from "@aztec/accounts/testing";
-
 import { DefaultAccountContract } from '@aztec/accounts/defaults';
 import { ContractArtifact } from "@aztec/foundation/abi";
 import { getSchnorrAccount } from "@aztec/accounts/schnorr";
+import { Salt } from "@aztec/aztec.js/account";
+import { AccountContract } from "@aztec/aztec.js/account";
+import { AccountGroupContractArtifact, AccountGroupContract} from "../artifacts/AccountGroup.js";
 
-class AccountGroupContract extends DefaultAccountContract {
+// Extend the account contract to use necessary configurations
+class AccountGroupContractClass extends DefaultAccountContract {
   private signingPrivateKey: GrumpkinScalar;
+  private adminAddress: AztecAddress;
 
-  constructor(signingPrivateKey: GrumpkinScalar) {
-      super(AccountGroupContractArtifact);
-      this.signingPrivateKey = signingPrivateKey;
+  constructor(signingPrivateKey: GrumpkinScalar, adminAddress: AztecAddress) {
+    super(AccountGroupContractArtifact);
+    this.signingPrivateKey = signingPrivateKey;
+    this.adminAddress = adminAddress;
   }
+
   getDeploymentArgs() {
-      const signingPublicKey = new Schnorr().computePublicKey(this.signingPrivateKey);
-      return [signingPublicKey.x, signingPublicKey.y];
+    const signingPublicKey = new Schnorr().computePublicKey(this.signingPrivateKey);
+    return [signingPublicKey.x, signingPublicKey.y, this.adminAddress];
   }
+
   getAuthWitnessProvider(_address: CompleteAddress) {
-      return new SchnorrAuthWitnessProvider(this.signingPrivateKey);
+    return new SchnorrAuthWitnessProvider(this.signingPrivateKey);
   }
 }
+
 /** Creates auth witnesses using Schnorr signatures. */
 class SchnorrAuthWitnessProvider {
   private signingPrivateKey: GrumpkinScalar;
+
   constructor(signingPrivateKey: GrumpkinScalar) {
-      this.signingPrivateKey = signingPrivateKey;
+    this.signingPrivateKey = signingPrivateKey;
   }
+
   createAuthWit(messageHash: Fr) {
-      const schnorr = new Schnorr();
-      const signature = schnorr.constructSignature(messageHash.toBuffer(), this.signingPrivateKey).toBuffer();
-      return Promise.resolve(new AuthWitness(messageHash, [...signature]));
+    const schnorr = new Schnorr();
+    const signature = schnorr.constructSignature(messageHash.toBuffer(), this.signingPrivateKey).toBuffer();
+    return Promise.resolve(new AuthWitness(messageHash, [...signature]));
   }
 }
 
+// Extend AccountManager to add an admin parameter and configure deployment
+export class AccountGroupManager extends AccountManager {
+  private admin: AztecAddress;
+
+  constructor(
+    pxe: PXE,
+    secretKey: Fr,
+    accountGroupContract: AccountGroupContractClass,
+    admin: AztecAddress ,
+    salt?: Salt
+  ) {
+    super(pxe, secretKey, accountGroupContract, salt);
+    this.admin = admin;
+  }
+}
+
+// Setup PXE and other utilities for deployment
 const setupSandbox = async () => {
   const { PXE_URL = "http://localhost:8080" } = process.env;
   const pxe = createPXEClient(PXE_URL);
@@ -62,6 +83,7 @@ const setupSandbox = async () => {
   return pxe;
 };
 
+// Generate keys and Schnorr account for testing
 const createSchnorrAccount = async (pxe: PXE) => {
   const secret = Fr.random();
   console.log("secret", secret);
@@ -71,63 +93,78 @@ const createSchnorrAccount = async (pxe: PXE) => {
   console.log("wallet", wallet);
   return wallet;
 };  
-
 const generatePublicKeys = async () => {
   const signingPrivateKey = GrumpkinScalar.random();
   const schnorr = new Schnorr();
   const publicKey = schnorr.computePublicKey(signingPrivateKey);
-  console.log("publicKey", publicKey.toString());
 
   const [x, y] = publicKey.toFields();
-  console.log("x", x);
-  console.log("y", y);
-  return {signingPrivateKey,x, y};
-}
+  return { signingPrivateKey, x, y };
+};
 
-describe("Voting", () => {
+// Test case to deploy the contract
+describe("AccountGroup Contract Deployment", () => {
   let pxe: PXE;
-  let wallets: AccountWallet[] = [];
-  let accounts: CompleteAddress[] = [];
   let logger: DebugLogger;
-  let addresses: string[] = [];
-  let signingPrivateKey: GrumpkinScalar;
-  let x: any;
-  let y: any;
+  let admin: AztecAddress;
+  let contractAddress: AztecAddress;
+  let adminAccount: AccountWallet;
+
   beforeAll(async () => {
     logger = createDebugLogger("aztec:account-group");
-    logger.info("Account-Group tests running.");
-
     pxe = await setupSandbox();
 
+    adminAccount = await createSchnorrAccount(pxe);
+    console.log("admin", adminAccount);
+
+    admin = adminAccount.getAddress();
+    console.log("adminAddress", admin);
   });
 
-  it("Deploys the contract", async () => {
+  it("Deploys the AccountGroupContract", async () => {
     const salt = Fr.random();
     const secret = Fr.random();
 
-    const  {signingPrivateKey,x, y} = await generatePublicKeys();
+   
+
+    // Generate keys for the contract
+    const { signingPrivateKey, x, y } = await generatePublicKeys();
+
+    // Create AccountGroupContract with the signing private key
+    const accountContract = new AccountGroupContractClass(signingPrivateKey, admin);
 
 
-    const accountContract = new AccountGroupContract(signingPrivateKey);
-
-    const deploymentArgs = [x, y];
-
-    const accountManager = new AccountManager(pxe, secret, accountContract, salt);
+    // Initialize AccountGroupManager with the admin address
+    const accountManager = new AccountGroupManager(pxe, secret, accountContract, admin, salt);
 
     await accountManager.register();
 
+    // Deployment options
     const deployOptions: DeployAccountOptions = {
-      skipClassRegistration: true,
+      skipClassRegistration: false,
       skipPublicDeployment: false,
     };
 
     const deployTx = accountManager.deploy(deployOptions);
-
     const wallet = await deployTx.getWallet();
 
-    console.log("Schnorr account deployed with address: ", wallet.getCompleteAddress());
+    contractAddress = wallet.getAddress();
 
+    console.log("Account Group Contract deployed with address:", wallet.getCompleteAddress());
     expect(wallet.getCompleteAddress()).toBeDefined();
 
-})
+    
+  });
+
+  it("Gets address from storage", async () => {
+
+    const adminInstance = await AccountGroupContract.at(contractAddress, adminAccount)
+
+    const getAdmin = await adminInstance.methods.get_admin().simulate();
+
+    console.log("getAdmin", getAdmin.toString());
+
+    expect(getAdmin.toString()).toBe(admin.toString());
+
+  });
 });
