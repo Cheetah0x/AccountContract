@@ -1,141 +1,61 @@
 import {
   AccountWallet,
-  CompleteAddress,
   createDebugLogger,
   Fr,
   PXE,
-  waitForPXE,
-  createPXEClient,
   DebugLogger,
-  GrumpkinScalar,
-  Schnorr,
-  AccountManager,
-  AuthWitness,
-  ContractInstanceWithAddress,
-  getContractInstanceFromDeployParams,
   AztecAddress,
+  GrumpkinScalar,
 } from "@aztec/aztec.js";
 import { type DeployAccountOptions } from '@aztec/aztec.js';
-import { DefaultAccountContract } from '@aztec/accounts/defaults';
-import { ContractArtifact } from "@aztec/foundation/abi";
-import { getSchnorrAccount } from "@aztec/accounts/schnorr";
-import { Salt } from "@aztec/aztec.js/account";
-import { AccountContract } from "@aztec/aztec.js/account";
 import { AccountGroupContractArtifact, AccountGroupContract} from "../artifacts/AccountGroup.js";
+import { AccountGroupManager, AccountGroupContractClass } from "./types.js";
+import { createSchnorrAccount, generatePublicKeys, setupSandbox1, setupSandbox2 } from "./utils.js";
 
-// Extend the account contract to use necessary configurations
-class AccountGroupContractClass extends DefaultAccountContract {
-  private signingPrivateKey: GrumpkinScalar;
-  private adminAddress: AztecAddress;
-
-  constructor(signingPrivateKey: GrumpkinScalar, adminAddress: AztecAddress) {
-    super(AccountGroupContractArtifact);
-    this.signingPrivateKey = signingPrivateKey;
-    this.adminAddress = adminAddress;
-  }
-
-  getDeploymentArgs() {
-    const signingPublicKey = new Schnorr().computePublicKey(this.signingPrivateKey);
-    return [signingPublicKey.x, signingPublicKey.y, this.adminAddress];
-  }
-
-  getAuthWitnessProvider(_address: CompleteAddress) {
-    return new SchnorrAuthWitnessProvider(this.signingPrivateKey);
-  }
-}
-
-/** Creates auth witnesses using Schnorr signatures. */
-class SchnorrAuthWitnessProvider {
-  private signingPrivateKey: GrumpkinScalar;
-
-  constructor(signingPrivateKey: GrumpkinScalar) {
-    this.signingPrivateKey = signingPrivateKey;
-  }
-
-  createAuthWit(messageHash: Fr) {
-    const schnorr = new Schnorr();
-    const signature = schnorr.constructSignature(messageHash.toBuffer(), this.signingPrivateKey).toBuffer();
-    return Promise.resolve(new AuthWitness(messageHash, [...signature]));
-  }
-}
-
-// Extend AccountManager to add an admin parameter and configure deployment
-export class AccountGroupManager extends AccountManager {
-  private admin: AztecAddress;
-
-  constructor(
-    pxe: PXE,
-    secretKey: Fr,
-    accountGroupContract: AccountGroupContractClass,
-    admin: AztecAddress ,
-    salt?: Salt
-  ) {
-    super(pxe, secretKey, accountGroupContract, salt);
-    this.admin = admin;
-  }
-}
-
-// Setup PXE and other utilities for deployment
-const setupSandbox = async () => {
-  const { PXE_URL = "http://localhost:8080" } = process.env;
-  const pxe = createPXEClient(PXE_URL);
-  await waitForPXE(pxe);
-  return pxe;
-};
-
-// Generate keys and Schnorr account for testing
-const createSchnorrAccount = async (pxe: PXE) => {
-  const secret = Fr.random();
-  console.log("secret", secret);
-  const signingPrivateKey = GrumpkinScalar.random();
-  console.log("signingPrivateKey", signingPrivateKey);
-  const wallet = getSchnorrAccount(pxe, secret, signingPrivateKey).waitSetup();
-  console.log("wallet", wallet);
-  return wallet;
-};  
-const generatePublicKeys = async () => {
-  const signingPrivateKey = GrumpkinScalar.random();
-  const schnorr = new Schnorr();
-  const publicKey = schnorr.computePublicKey(signingPrivateKey);
-
-  const [x, y] = publicKey.toFields();
-  return { signingPrivateKey, x, y };
-};
 
 // Test case to deploy the contract
 describe("AccountGroup Contract Deployment", () => {
-  let pxe: PXE;
+  let pxe1: PXE;
+  let pxe2: PXE;
   let logger: DebugLogger;
   let admin: AztecAddress;
   let contractAddress: AztecAddress;
   let adminAccount: AccountWallet;
+  let aliceAddress: AztecAddress;
+  let accountPrivateKey: GrumpkinScalar;
+  let salt: Fr;
+  let secret: Fr;
 
   beforeAll(async () => {
     logger = createDebugLogger("aztec:account-group");
-    pxe = await setupSandbox();
+    pxe1 = await setupSandbox1();
+    pxe2 = await setupSandbox2();
 
-    adminAccount = await createSchnorrAccount(pxe);
+    adminAccount = await createSchnorrAccount(pxe1);
     console.log("admin", adminAccount);
-
     admin = adminAccount.getAddress();
     console.log("adminAddress", admin);
+
+    const aliceWallet = await createSchnorrAccount(pxe2);
+    aliceAddress = aliceWallet.getAddress();
+    console.log("aliceAddress", aliceAddress);
+    
   });
 
   it("Deploys the AccountGroupContract", async () => {
-    const salt = Fr.random();
-    const secret = Fr.random();
-
-   
-
+    //in the future may need to get rid of the salt, otherwise others will need to know it
+    salt = Fr.random();
+    secret = Fr.random();
     // Generate keys for the contract
     const { signingPrivateKey, x, y } = await generatePublicKeys();
+    accountPrivateKey = signingPrivateKey;
 
     // Create AccountGroupContract with the signing private key
     const accountContract = new AccountGroupContractClass(signingPrivateKey, admin);
 
 
     // Initialize AccountGroupManager with the admin address
-    const accountManager = new AccountGroupManager(pxe, secret, accountContract, admin, salt);
+    const accountManager = new AccountGroupManager(pxe1, secret, accountContract, admin, salt);
 
     await accountManager.register();
 
@@ -156,6 +76,26 @@ describe("AccountGroup Contract Deployment", () => {
     
   });
 
+  it("Registers the AccountGroupContract in Alice's PXE", async () => {
+
+    // Reuse the account contract details in PXE2 with admin’s signing key and contract address
+    const accountContract = new AccountGroupContractClass(accountPrivateKey, admin);
+
+    // Initialize Alice’s AccountGroupManager with admin’s contract details and same salt
+    const aliceManager = new AccountGroupManager(pxe2, secret, accountContract, admin, salt);
+
+    // Register contract address in Alice’s PXE
+    await aliceManager.register();
+    const alicePXEAccountContract = await aliceManager.getWallet();
+
+    console.log("alicePXEAccountContract", alicePXEAccountContract.getCompleteAddress().toString());
+
+    console.log("Alice registered the contract with address:", alicePXEAccountContract.getCompleteAddress().toString());
+    expect(alicePXEAccountContract.getCompleteAddress().address.toString()).toBe(contractAddress.toString());
+  });
+
+  
+
   it("Gets address from storage", async () => {
 
     const adminInstance = await AccountGroupContract.at(contractAddress, adminAccount)
@@ -165,6 +105,21 @@ describe("AccountGroup Contract Deployment", () => {
     console.log("getAdmin", getAdmin.toString());
 
     expect(getAdmin.toString()).toBe(admin.toString());
-
   });
+
+  // it("Alice can read the admin from the group contract", async () => {
+  //   const aliceInstance = await AccountGroupContract.at(contractAddress, adminAccount)
+
+  //   const getAdmin = await aliceInstance.methods.get_admin().simulate();
+
+  //   console.log("getAdmin", getAdmin.toString());
+
+  //   expect(getAdmin.toString()).toBe(admin.toString());
+  // })
+
+  it("Sets up second pxe", async () => {
+    expect(aliceAddress).toBeDefined();
+  })
 });
+
+

@@ -12,11 +12,10 @@ mod notes;
 
 use dep::aztec::macros::aztec;
 
-
 #[aztec]
 contract AccountGroup {
 
-    use dep::aztec::prelude::{AztecAddress, PrivateContext, PrivateImmutable};
+    use dep::aztec::prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PublicMutable};
     use dep::aztec::encrypted_logs::encrypted_note_emission::encode_and_encrypt_note;
     use dep::authwit::{
         entrypoint::{app::AppPayload, fee::FeePayload}, account::AccountActions,
@@ -28,10 +27,12 @@ contract AccountGroup {
 
     use crate::notes::{public_key_note::PublicKeyNote, NewAddressNote::NewAddressNote};
 
+
     #[storage]
     struct Storage<Context> {
         signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
         admin: PrivateImmutable<NewAddressNote, Context>,
+        // group_members: Map<AztecAddress, PublicMutable<bool, Context>, Context>
     }
 
     //for SchnoorAccount contract
@@ -44,30 +45,13 @@ contract AccountGroup {
         let this_keys = get_public_keys(this);
         //not emitting outgoing for msg_sender here to not have to register keys for the contract through which we deploy this (typically MultiCallEntryPoint).
 
-        let mut pub_key_note = PublicKeyNote::new(
-            signing_pub_key_x,
-            signing_pub_key_y,
-            this_keys.npk_m.hash()
-        );
-        storage.signing_public_key.initialize(&mut pub_key_note).emit(
-            encode_and_encrypt_note(
-                &mut context,
-                this_keys.ovpk_m,
-                this_keys.ivpk_m,
-                this
-            )
-        );
+        let mut pub_key_note = PublicKeyNote::new(signing_pub_key_x, signing_pub_key_y, this_keys.npk_m.hash());
+        storage.signing_public_key.initialize(&mut pub_key_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, this));
 
         let admin_keys = get_public_keys(admin);
         let mut admin_address_note = NewAddressNote::new(admin, admin_keys.npk_m.hash());
-        storage.admin.initialize(&mut admin_address_note).emit(
-            encode_and_encrypt_note(
-                &mut context,
-                admin_keys.ovpk_m,
-                admin_keys.ivpk_m,
-                admin
-            )
-        );
+        storage.admin.initialize(&mut admin_address_note).emit(encode_and_encrypt_note(&mut context, admin_keys.ovpk_m, admin_keys.ivpk_m, admin));
+        // storage.group_members.at(admin).write(true);
     }
 
     // Note: If you globally change the entrypoint signature don't forget to update account_entrypoint.ts
@@ -83,6 +67,7 @@ contract AccountGroup {
         admin_note.address
     }
 
+
     #[private]
     #[view]
     fn verify_private_authwit(inner_hash: Field) -> Field {
@@ -93,8 +78,8 @@ contract AccountGroup {
     #[contract_library_method]
     fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
         let storage = Storage::init(context);
-        let public_key = storage.signing_public_key.get_note();    
-            // Load auth witness and format as an u8 array
+        let public_key = storage.signing_public_key.get_note();
+        // Load auth witness and format as an u8 array
         let witness: [Field; 64] = unsafe {
             get_auth_witness(outer_hash)
         };
@@ -118,19 +103,14 @@ contract AccountGroup {
     * @param message_hash The message hash of the message to check the validity
     * @return True if the message_hash can be consumed, false otherwise
     */
-    unconstrained fn lookup_validity(consumer:AztecAddress, inner_hash: Field) -> bool {
+    unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
         let public_key = storage.signing_public_key.view_note();
 
-        let message_hash = compute_authwit_message_hash(
-            consumer,
-            context.chain_id(),
-            context.version(),
-            inner_hash
-        );
+        let message_hash = compute_authwit_message_hash(consumer, context.chain_id(), context.version(), inner_hash);
 
         let witness: [Field; 64] = get_auth_witness(message_hash);
 
-        let mut signature: [u8; 64] = [0;64];
+        let mut signature: [u8; 64] = [0; 64];
 
         for i in 0..64 {
             signature[i] = witness[i] as u8;
@@ -146,21 +126,11 @@ contract AccountGroup {
         //compute the nullifier and check if is is spent
         //This will BLINDLY TRUST the oracle, but the oracle is us, and 
         //it is not as part of execution of the contract, so we are good. 
-        let nullifier = compute_authwit_nullifier(
-            context.this_address(),
-            inner_hash
-        );
-        let siloed_nullifier = compute_siloed_nullifier(
-            consumer,
-            nullifier
-        );
-        let lower_wit = get_low_nullifier_membership_witness(
-            context.block_number(),
-            siloed_nullifier
-        );
+        let nullifier = compute_authwit_nullifier(context.this_address(), inner_hash);
+        let siloed_nullifier = compute_siloed_nullifier(consumer, nullifier);
+        let lower_wit = get_low_nullifier_membership_witness(context.block_number(), siloed_nullifier);
         let is_spent = lower_wit.leaf_preimage.nullifier == siloed_nullifier;
 
         !is_spent & valid_in_private
     }
-
 }
