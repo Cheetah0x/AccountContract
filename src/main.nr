@@ -1,21 +1,58 @@
-//goal is to use an account contract to create the group that people can interact with
+//the idea here is that the group contract is just going to be a schnoor account
+//will play around with this to see if others can interact with it and get the keys
+//if so, they can use the state of the contract to keep shared secrets
+
+//they will have this account contract in their PXEs, so they can get the state of it and interact with it
+
 
 use dep::aztec::macros::aztec;
 
 #[aztec]
 contract AccountGroup {
 
-    use dep::aztec::prelude::PrivateContext;
-    use dep::authwith::{
+    use dep::aztec::prelude::{AztecAddress, PrivateContext, PrivateImmutable};
+    use dep::aztec::encrypted_logs::encrypted_note_emission::encode_and_encrypt_note;
+    use dep::authwit::{
         entrypoint::{app::AppPayload, fee::FeePayload}, account::AccountActions,
-        auth_withness::get_auth_withness,
+        auth_witness::get_auth_witness, auth::{compute_authwit_nullifier, compute_authwit_message_hash}
     };
+    use dep::aztec::{hash::compute_siloed_nullifier, keys::getters::get_public_keys};
+    use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
+    use dep::aztec::macros::{storage::storage, functions::{private, initializer, view, noinitcheck}};
 
-    use dep::aztec::macros::{functions::{private, view}};
+    use crate::public_key_note::PublicKeyNote;
 
-    global public_key_x: Field = 0x16b93f4afae55cab8507baeb8e7ab4de80f5ab1e9e1f5149bf8cd0d375451d90;
-    global public_key_y: Field = 0x208d44b36eb6e73b254921134d002da1a90b41131024e3b1d721259182106205;
+    #[storage]
+    struct Storage<Context> {
+        signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
+    }
 
+    //for SchnoorAccount contract
+    //if we send the notes to the PXEs of the users in the group, then they can use the state of the contract to keep shared secrets
+    //that is the idea. 
+    #[private]
+    #[initializer]
+    fn constructor(signing_pub_key_x: Field, signing_pub_key_y: Field) {
+        let this = context.this_address();
+        let this_keys = get_public_keys(this);
+        //not emitting outgoing for msg_sender here to not have to register keys for the contract through which we deploy this (typically MultiCallEntryPoint).
+
+        let mut pub_key_note = PublicKeyNote::new(
+            signing_pub_key_x,
+            signing_pub_key_y,
+            this_keys.npk_m.hash()
+        );
+        storage.signing_public_key.initalize(&mut pub_key_note).emit(
+            encode_and_encrypt_note(
+                &mut context,
+                this_keys.ovpk_m,
+                this_keys.ivpk_m,
+                this
+            )
+        );
+    }
+
+    // Note: If you globally change the entrypoint signature don't forget to update account_entrypoint.ts
     #[private]
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
         let actions = AccountActions::init(&mut context, is_valid_impl);
@@ -24,23 +61,23 @@ contract AccountGroup {
 
     #[private]
     #[view]
-    fn verify_private_authwith(inner_hash: Field) -> Field {
+    fn verify_private_authwit(inner_hash: Field) -> Field {
         let actions = AccountActions::init(&mut context, is_valid_impl);
-        actions.verify_private_authwith(inner_hash)
+        actions.verify_private_authwit(inner_hash)
     }
 
     #[contract_library_method]
     fn is_valid_impl(_context: &mut PrivateContext, outer_hash: Field) -> bool {
-        //load auth with and format as an u8 array
-        let witness = [Field; 64] = unsafe {
-            get_auth_withness(outer_hash)
+        // Load auth witness and format as an u8 array
+        let witness: [Field; 64] = unsafe {
+            get_auth_witness(outer_hash)
         };
         let mut signature: [u8; 64] = [0; 64];
         for i in 0..64 {
             signature[i] = witness[i] as u8;
         }
 
-        //verfify sig using harcoded pub key
+        // Verify signature using hardcoded public key
         std::schnorr::verify_signature(
             public_key_x,
             public_key_y,
@@ -48,4 +85,56 @@ contract AccountGroup {
             outer_hash.to_be_bytes::<32>()
         )
     }
+
+    /** 
+    * @notice Helper function to check validity of private authwitnesses
+    * @param consumer The address of the consumer of the message
+    * @param message_hash The message hash of the message to check the validity
+    * @return True if the message_hash can be consumed, false otherwise
+    */
+    unconstrained fn lookup_validity(consumer:AztecAddress, inner_hash: Field) -> bool {
+        let public_key = storage.signing_public_key.view_note();
+
+        let message_hash = compute_authwit_message_hash(
+            consumer,
+            context.chain_id(),
+            context.version(),
+            inner_hash
+        );
+
+        let witness: [Field; 64] = get_auth_witness(message_hash);
+
+        let mut signature: [u8; 64] = [0;64];
+
+        for i in 0..64 {
+            signature[i] = witness[i] as u8;
+        }
+
+        let valid_in_private = std::schnorr::verify_signature(
+            public_key.x,
+            public_key.y,
+            signature,
+            message_hash.to_be_bytes::<32>()
+        );
+
+        //compute the nullifier and check if is is spent
+        //This will BLINDLY TRUST the oracle, but the oracle is us, and 
+        //it is not as part of execution of the contract, so we are good. 
+        let nullifier = compute_authwit_nullifier(
+            context.this_address(),
+            inner_hash
+        );
+        let siloed_nullifier = compute_siloed_nullifier(
+            consumer,
+            nullifier
+        );
+        let lower_wit = get_low_nullifier_membership_witness(
+            context.block_number(),
+            siloed_nullifier
+        );
+        let is_spent = lower_wit.leaf_preimage.nullifier == siloed_nullifier;
+
+        !is_spent & valid_in_private
+    }
+
 }

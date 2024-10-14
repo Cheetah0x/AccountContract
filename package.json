@@ -1,0 +1,12 @@
+{
+  "name": "accountContract",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:Cheetah0x/AccountContract.git",
+  "author": "Cheetah0x <niallcheetham@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@shieldswap/wallet-sdk": "^0.55.1"
+  }
+}
