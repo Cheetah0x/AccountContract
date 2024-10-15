@@ -18,36 +18,46 @@ import { AccountGroupManager, AccountGroupContractClass } from "./types.js";
 import {
   createSchnorrAccount,
   generatePublicKeys,
-  setupSandbox1,
-  setupSandbox2,
+  setupSandbox,
 } from "./utils.js";
 import { eventListener, delay, retryWithDelay } from "./utils.js";
+
+const { PXE_URL1 = "http://localhost:8080" } = process.env;
+const { PXE_URL2 = "http://localhost:8081" } = process.env;
+const { PXE_URL3 = "http://localhost:8082" } = process.env;
 
 // Test case to deploy the contract
 describe("AccountGroup Contract Deployment", () => {
   let pxe1: PXE;
   let pxe2: PXE;
+  let pxe3: PXE;
   let logger: DebugLogger;
-  let admin: AztecAddress;
   let contractAddressPXE1: AztecAddress;
   let adminAccount: AccountWallet;
+  let aliceWallet: Wallet;
+  let bobWallet: Wallet;
+  let admin: AztecAddress;
   let aliceAddress: AztecAddress;
+  let bobAddress: AztecAddress;
   let accountPrivateKey: GrumpkinScalar;
   let contractAddressPXE2: AztecAddress;
+  let contractAddressPXE3: AztecAddress;
   let salt: Fr;
   let secret: Fr;
   let contractAccountPXE1: Wallet;
   let contractAccountPXE2: Wallet;
+  let contractAccountPXE3: Wallet;
   let contractInstancePXE1: AccountGroupContract;
   let contractInstancePXE2: AccountGroupContract;
+  let contractInstancePXE3: AccountGroupContract;
   let partialAddress: Fr;
   let accountContractPXE1: AccountGroupContractClass;
-  let aliceWallet: Wallet;
 
   beforeAll(async () => {
     logger = createDebugLogger("aztec:account-group");
-    pxe1 = await setupSandbox1();
-    pxe2 = await setupSandbox2();
+    pxe1 = await setupSandbox(PXE_URL1);
+    pxe2 = await setupSandbox(PXE_URL2);
+    pxe3 = await setupSandbox(PXE_URL3);
 
     adminAccount = await createSchnorrAccount(pxe1);
     console.log("admin", adminAccount);
@@ -57,7 +67,13 @@ describe("AccountGroup Contract Deployment", () => {
     aliceWallet = await createSchnorrAccount(pxe2);
     aliceAddress = aliceWallet.getAddress();
     console.log("aliceAddress", aliceAddress);
+
+    bobWallet = await createSchnorrAccount(pxe3);
+    bobAddress = bobWallet.getAddress();
+    console.log("bobAddress", bobAddress);
   });
+
+  //-----------------------------------Registering accounts on PXEs -----------------------------------
 
   it("Deploys the AccountGroupContract", async () => {
     //in the future may need to get rid of the salt, otherwise others will need to know it
@@ -142,37 +158,35 @@ describe("AccountGroup Contract Deployment", () => {
     await delay(2000);
   });
 
-  // it("Registers the AccountGroupContract in Alice's PXE", async () => {
-  //   const secretKey = secret;
-  //   const contractPXE2 = await pxe2.registerAccount(secretKey, partialAddress);
-
-  //   const contractAccountPXE2 = contractPXE2;
-  //   contractAddressPXE2 = contractAccountPXE2.address;
-  //   expect(contractAddressPXE2).toBe(contractAddressPXE1);
-  // });
-
-  it("Fetches same notes", async () => {
-    const notesPXE1 = await eventListener(pxe1, "pxe1", contractAddressPXE1);
-    const notesPXE2 = await eventListener(pxe2, "pxe2", contractAddressPXE2);
-    expect(notesPXE1).toEqual(notesPXE2);
+  it("Registers the AccountGroupContract in Bob's PXE", async () => {
+    const bobManagerPXE3 = new AccountGroupManager(
+      pxe3,
+      secret,
+      accountContractPXE1,
+      admin,
+      salt
+    );
+    await bobManagerPXE3.register();
+    const walletPXE3 = await bobManagerPXE3.getWallet();
+    contractAccountPXE3 = walletPXE3;
+    contractAddressPXE3 = walletPXE3.getAddress();
+    expect(walletPXE3.getCompleteAddress().address.toString()).toBe(
+      contractAddressPXE1.toString()
+    );
   });
 
-  // //this is for when the note gets sent to the admin
-  // it("Gets admin address from storage", async () => {
-  //   await eventListener(pxe1, "pxe1");
-  //   const adminInstance = await AccountGroupContract.at(
-  //     contractAddressPXE1,
-  //     adminAccount
-  //   );
+  //-----------------------------------Fetching notes from PXEs -----------------------------------
 
-  //   const getAdmin = await adminInstance.methods.get_admin().simulate();
+  it("Fetches same notes in all PXEs", async () => {
+    const notesPXE1 = await eventListener(pxe1, "pxe1", contractAddressPXE1);
+    const notesPXE2 = await eventListener(pxe2, "pxe2", contractAddressPXE2);
+    const notesPXE3 = await eventListener(pxe3, "pxe3", contractAddressPXE3);
+    expect(notesPXE1).toEqual(notesPXE2);
+    expect(notesPXE1).toEqual(notesPXE3);
+  });
 
-  //   console.log("getAdmin", getAdmin.toString());
+  //-----------------------------------Getting the admin address from storage -----------------------------------
 
-  //   expect(getAdmin.toString()).toBe(admin.toString());
-  // });
-
-  // gets the admin address from storage from perspective of the contract
   it("Gets the admin address from storage PXE1", async () => {
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
     const blockNumber = await pxe1.getBlockNumber();
@@ -192,9 +206,48 @@ describe("AccountGroup Contract Deployment", () => {
     await delay(2000);
   });
 
-  it("Sets up second pxe", async () => {
-    expect(aliceAddress).toBeDefined();
+  it("Gets the admin address from storage PXE2", async () => {
+    await eventListener(pxe2, "pxe2", contractAddressPXE2);
+    console.log("note PXE2 before get admin");
+
+    const blockNumberPXE2 = await pxe2.getBlockNumber();
+    console.log("blockNumberPXE2", blockNumberPXE2);
+
+    contractInstancePXE2 = await AccountGroupContract.at(
+      contractAddressPXE2,
+      contractAccountPXE2
+    );
+
+    // Retry with extended delay for get_admin
+    const getAdminPXE2 = await retryWithDelay(async () => {
+      console.log("Attempting get_admin on PXE2...");
+      return await contractInstancePXE2.methods.get_admin().simulate();
+    });
+
+    console.log("getAdminPXE2", getAdminPXE2.toString());
+    expect(getAdminPXE2.toString()).toBe(admin.toString());
   });
+
+  it("Gets the admin address from storage PXE3", async () => {
+    await eventListener(pxe3, "pxe3", contractAddressPXE3);
+    console.log("note PXE3 before get admin");
+
+    const blockNumberPXE3 = await pxe3.getBlockNumber();
+    console.log("blockNumberPXE3", blockNumberPXE3);
+
+    contractInstancePXE3 = await AccountGroupContract.at(
+      contractAddressPXE3,
+      contractAccountPXE3
+    );
+
+    const getAdminPXE3 = await contractInstancePXE3.methods
+      .get_admin()
+      .simulate();
+
+    expect(getAdminPXE3.toString()).toBe(admin.toString());
+  });
+
+  //-----------------------------------Setting the balance and making a payment -----------------------------------
 
   it("it sets balance and makes payment between two accounts PXE1", async () => {
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
@@ -232,7 +285,9 @@ describe("AccountGroup Contract Deployment", () => {
   it("Fetches same notes 2", async () => {
     const notesPXE1 = await eventListener(pxe1, "pxe1", contractAddressPXE1);
     const notesPXE2 = await eventListener(pxe2, "pxe2", contractAddressPXE2);
+    const notesPXE3 = await eventListener(pxe3, "pxe3", contractAddressPXE3);
     expect(notesPXE1).toEqual(notesPXE2);
+    expect(notesPXE1).toEqual(notesPXE3);
   });
 
   it("fetches the balance between two accounts PXE1", async () => {
@@ -277,29 +332,229 @@ describe("AccountGroup Contract Deployment", () => {
     expect(balance).toBe(120n);
   });
 
-  it("Gets the admin address from storage PXE2", async () => {
-    await eventListener(pxe2, "pxe2", contractAddressPXE2);
-    console.log("note PXE2 before get admin");
+  it("it sets balance between two accounts PXE3", async () => {
+    await eventListener(pxe3, "pxe3", contractAddressPXE3);
+    console.log("note PXE3 before set balance");
 
-    const blockNumberPXE2 = await pxe2.getBlockNumber();
-    console.log("blockNumberPXE2", blockNumberPXE2);
-
-    contractInstancePXE2 = await AccountGroupContract.at(
-      contractAddressPXE2,
-      contractAccountPXE2
-    );
-
-    // Retry with extended delay for get_admin
-    const getAdminPXE2 = await retryWithDelay(async () => {
-      console.log("Attempting get_admin on PXE2...");
-      return await contractInstancePXE2.methods.get_admin().simulate();
+    await retryWithDelay(async () => {
+      await contractInstancePXE3.methods
+        .set_balance(admin, aliceAddress, 50)
+        .send()
+        .wait();
     });
 
-    console.log("getAdminPXE2", getAdminPXE2.toString());
-    expect(getAdminPXE2.toString()).toBe(admin.toString());
-
-    const blockNumberPXE22 = await pxe2.getBlockNumber();
-    console.log("blockNumberPXE2", blockNumberPXE22);
+    const blockNumber = await pxe3.getBlockNumber();
+    console.log("blockNumber", blockNumber);
     await delay(2000);
+
+    const balance = await contractInstancePXE3.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(170n);
+  });
+
+  it("Makes payment in PXE2", async () => {
+    await eventListener(pxe2, "pxe2", contractAddressPXE2);
+
+    const payment = await retryWithDelay(async () => {
+      const result = await contractInstancePXE2.methods
+        .make_payment(aliceAddress, admin, 10)
+        .send()
+        .wait();
+      return result;
+    });
+    console.log("payment", payment);
+
+    const balance = await contractInstancePXE2.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(160n);
+  });
+
+  it("Makes payment in PXE3", async () => {
+    await eventListener(pxe3, "pxe3", contractAddressPXE3);
+
+    const payment = await retryWithDelay(async () => {
+      const result = await contractInstancePXE3.methods
+        .make_payment(aliceAddress, admin, 50)
+        .send()
+        .wait();
+      return result;
+    });
+    console.log("payment", payment);
+
+    const balance = await contractInstancePXE3.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(110n);
+  });
+
+  //---------------Payments between Alice and Bob ---------------//
+
+  it("Makes balance between Alice and Bob PXE1", async () => {
+    const set_balance = await contractInstancePXE1.methods
+      .set_balance(aliceAddress, bobAddress, 100)
+      .send()
+      .wait();
+    console.log("set_balance", set_balance);
+
+    const balance = await contractInstancePXE1.methods
+      .get_balance(aliceAddress, bobAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(100n);
+  });
+
+  it("Makes balance between Alice and Bob PXE2", async () => {
+    const set_balance = await contractInstancePXE2.methods
+      .set_balance(aliceAddress, bobAddress, 100)
+      .send()
+      .wait();
+    console.log("set_balance", set_balance);
+
+    const balance = await contractInstancePXE2.methods
+      .get_balance(aliceAddress, bobAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(200n);
+  });
+
+  it("Makes balance between Alice and Bob PXE3", async () => {
+    const set_balance = await contractInstancePXE3.methods
+      .set_balance(aliceAddress, bobAddress, 100)
+      .send()
+      .wait();
+    console.log("set_balance", set_balance);
+
+    const balance = await contractInstancePXE3.methods
+      .get_balance(aliceAddress, bobAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(300n);
+  });
+
+  it("Makes payment between Alice and Bob PXE1", async () => {
+    const payment = await retryWithDelay(async () => {
+      const result = await contractInstancePXE1.methods
+        .make_payment(bobAddress, aliceAddress, 75)
+        .send()
+        .wait();
+      return result;
+    });
+    const balance = await contractInstancePXE1.methods
+      .get_balance(aliceAddress, bobAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(225n);
+  });
+
+  it("Makes payment between Alice and Bob PXE3", async () => {
+    const payment = await retryWithDelay(async () => {
+      const result = await contractInstancePXE3.methods
+        .make_payment(bobAddress, aliceAddress, 75)
+        .send()
+        .wait();
+      return result;
+    });
+    console.log("payment", payment);
+
+    const balance = await contractInstancePXE3.methods
+      .get_balance(aliceAddress, bobAddress)
+      .simulate();
+    console.log("balance", balance);
+    expect(balance).toBe(150n);
+  });
+
+  //-----------------------------------Setting up group payments -----------------------------------
+
+  it("Sets up group payments PXE1", async () => {
+    const current_balance_alice_admin = await contractInstancePXE1.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("current_balance_alice_admin", current_balance_alice_admin);
+
+    const current_balance_bob_admin = await contractInstancePXE1.methods
+      .get_balance(admin, bobAddress)
+      .simulate();
+    console.log("current_balance_bob_admin", current_balance_bob_admin);
+
+    const set_up_group_payments = await contractInstancePXE1.methods
+      .setup_group_payments(admin, [aliceAddress, bobAddress], 150)
+      .send()
+      .wait();
+    console.log("set_up_group_payments", set_up_group_payments);
+
+    const balance_alice_admin = await contractInstancePXE1.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("balance_alice_admin", balance_alice_admin);
+    expect(balance_alice_admin).toBe(current_balance_alice_admin + 50n);
+
+    const balance_bob_admin = await contractInstancePXE1.methods
+      .get_balance(admin, bobAddress)
+      .simulate();
+    console.log("balance_bob_admin", balance_bob_admin);
+    expect(balance_bob_admin).toBe(current_balance_bob_admin + 50n);
+  });
+
+  it("Sets up group payments PXE2", async () => {
+    const current_balance_alice_admin = await contractInstancePXE2.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("current_balance_alice_admin", current_balance_alice_admin);
+
+    const current_balance_bob_admin = await contractInstancePXE2.methods
+      .get_balance(admin, bobAddress)
+      .simulate();
+    console.log("current_balance_bob_admin", current_balance_bob_admin);
+
+    const set_up_group_payments = await contractInstancePXE2.methods
+      .setup_group_payments(admin, [aliceAddress, bobAddress], 150)
+      .send()
+      .wait();
+    console.log("set_up_group_payments", set_up_group_payments);
+
+    const balance_alice_admin = await contractInstancePXE2.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("balance_alice_admin", balance_alice_admin);
+    expect(balance_alice_admin).toBe(current_balance_alice_admin + 50n);
+
+    const balance_bob_admin = await contractInstancePXE2.methods
+      .get_balance(admin, bobAddress)
+      .simulate();
+    expect(balance_bob_admin).toBe(current_balance_bob_admin + 50n);
+  });
+
+  it("Sets up group payments PXE3", async () => {
+    const current_balance_alice_admin = await contractInstancePXE3.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("current_balance_alice_admin", current_balance_alice_admin);
+
+    const current_balance_bob_admin = await contractInstancePXE3.methods
+      .get_balance(admin, bobAddress)
+      .simulate();
+    console.log("current_balance_bob_admin", current_balance_bob_admin);
+
+    const set_up_group_payments = await contractInstancePXE3.methods
+      .setup_group_payments(admin, [aliceAddress, bobAddress], 150)
+      .send()
+      .wait();
+    console.log("set_up_group_payments", set_up_group_payments);
+
+    const balance_alice_admin = await contractInstancePXE3.methods
+      .get_balance(admin, aliceAddress)
+      .simulate();
+    console.log("balance_alice_admin", balance_alice_admin);
+    expect(balance_alice_admin).toBe(current_balance_alice_admin + 50n);
+
+    const balance_bob_admin = await contractInstancePXE3.methods
+      .get_balance(admin, bobAddress)
+      .simulate();
+    expect(balance_bob_admin).toBe(current_balance_bob_admin + 50n);
   });
 });

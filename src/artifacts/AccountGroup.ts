@@ -257,6 +257,14 @@ export class AccountGroupContract extends ContractBase {
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
+    /** setup_group_payments(creditor: struct, debtors: array, amount: field) */
+    setup_group_payments: ((
+      creditor: AztecAddressLike,
+      debtors: AztecAddressLike[],
+      amount: FieldLike
+    ) => ContractFunctionInteraction) &
+      Pick<ContractMethod, "selector">;
+
     /** verify_private_authwit(inner_hash: field) */
     verify_private_authwit: ((
       inner_hash: FieldLike

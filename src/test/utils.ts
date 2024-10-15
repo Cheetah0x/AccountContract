@@ -11,18 +11,10 @@ import {
 import { waitForPXE } from "@aztec/aztec.js";
 
 // Setup PXE and other utilities for deployment
-export const setupSandbox1 = async () => {
-  const { PXE_URL1 = "http://localhost:8080" } = process.env;
-  const pxe1 = createPXEClient(PXE_URL1);
-  await waitForPXE(pxe1);
-  return pxe1;
-};
-
-export const setupSandbox2 = async () => {
-  const { PXE_URL2 = "http://localhost:8081" } = process.env;
-  const pxe2 = createPXEClient(PXE_URL2);
-  await waitForPXE(pxe2);
-  return pxe2;
+export const setupSandbox = async (PXE_URL: string) => {
+  const pxe = createPXEClient(PXE_URL);
+  await waitForPXE(pxe);
+  return pxe;
 };
 
 // Generate keys and Schnorr account for testing

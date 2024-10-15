@@ -73,6 +73,24 @@ contract AccountGroup {
     }
 
     #[private]
+    fn setup_group_payments(creditor: AztecAddress, debtors: [AztecAddress; 2], amount: Field) {
+        let contract_address = context.this_address();
+        assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+
+        let shared_amount : u32 = amount as u32 / (debtors.len() + 1);
+        for i in 0..2 {
+            let debtor = debtors[i];
+            let hash_inputs = [creditor.to_field(), debtor.to_field()];
+            let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
+            // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
+
+            let storage_location = storage.member_balances.at(key);
+            increment(storage_location, shared_amount.to_field(), contract_address, contract_address);
+        }
+
+    }
+
+    #[private]
     fn set_balance(creditor: AztecAddress, debtor: AztecAddress, amount: Field) {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
