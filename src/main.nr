@@ -15,7 +15,7 @@ use dep::aztec::macros::aztec;
 #[aztec]
 contract AccountGroup {
 
-    use dep::aztec::prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PublicMutable};
+    use dep::aztec::prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PublicMutable, PrivateSet};
     use dep::aztec::encrypted_logs::encrypted_note_emission::encode_and_encrypt_note;
     use dep::authwit::{
         entrypoint::{app::AppPayload, fee::FeePayload}, account::AccountActions,
@@ -24,6 +24,10 @@ contract AccountGroup {
     use dep::aztec::{hash::compute_siloed_nullifier, keys::getters::get_public_keys};
     use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
     use dep::aztec::macros::{storage::storage, functions::{private, initializer, view, noinitcheck}};
+    use value_note::{balance_utils, utils::{increment, decrement}, value_note::ValueNote};
+    use std::hash::poseidon2;
+    use std::hash::pedersen_hash;
+    use aztec::note::note_getter::NoteGetterOptions;
 
     use crate::notes::{public_key_note::PublicKeyNote, NewAddressNote::NewAddressNote};
 
@@ -32,7 +36,7 @@ contract AccountGroup {
     struct Storage<Context> {
         signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
         admin: PrivateImmutable<NewAddressNote, Context>,
-        // group_members: Map<AztecAddress, PublicMutable<bool, Context>, Context>
+        member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>
     }
 
     //for SchnoorAccount contract
@@ -49,8 +53,8 @@ contract AccountGroup {
         storage.signing_public_key.initialize(&mut pub_key_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, this));
 
         let admin_keys = get_public_keys(admin);
-        let mut admin_address_note = NewAddressNote::new(admin, admin_keys.npk_m.hash());
-        storage.admin.initialize(&mut admin_address_note).emit(encode_and_encrypt_note(&mut context, admin_keys.ovpk_m, admin_keys.ivpk_m, admin));
+        let mut admin_address_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
+        storage.admin.initialize(&mut admin_address_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, admin));
         // storage.group_members.at(admin).write(true);
     }
 
@@ -62,10 +66,66 @@ contract AccountGroup {
     }
 
     #[private]
+    #[view]
     fn get_admin() -> pub AztecAddress {
         let admin_note = storage.admin.get_note();
         admin_note.address
     }
+
+    #[private]
+    fn set_balance(creditor: AztecAddress, debtor: AztecAddress, amount: Field) {
+        let contract_address = context.this_address();
+        assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+
+        let hash_inputs = [creditor.to_field(), debtor.to_field()];
+        let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
+        // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
+
+        let storage_location = storage.member_balances.at(key);
+        increment(storage_location, amount, contract_address, contract_address);
+    }
+
+    #[private]
+    fn make_payment(debtor: AztecAddress, creditor: AztecAddress, amount: Field) {
+        let contract_address = context.this_address();
+        assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+
+        let hash_inputs = [creditor.to_field(), debtor.to_field()];
+        let new_amount = amount * -1;
+        let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
+        // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
+
+        let storage_location = storage.member_balances.at(key);
+        increment(storage_location, new_amount, contract_address, contract_address);
+    }
+
+    #[private]
+    #[view]
+    fn get_balance(creditor: AztecAddress, debtor: AztecAddress) -> Field {
+        let contract_address = context.this_address();
+        assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+
+        let hash_inputs = [creditor.to_field(), debtor.to_field()];
+        let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
+        // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
+        let options = NoteGetterOptions::new();
+        let balance_notes: BoundedVec<ValueNote, 16> = storage.member_balances.at(key).get_notes(options);
+
+        let mut total_balance = 0 as Field;
+        for i in 0..balance_notes.max_len() {
+            if i < balance_notes.len() {
+                let note = balance_notes.get_unchecked(i);
+                total_balance += note.value;
+            }
+        }
+        total_balance
+    }
+
+    //next will be group balances, already this is much more efficient than the other implementation
+    //where i am just firing off notes to the users. 
+    
+
+
 
 
     #[private]

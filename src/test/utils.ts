@@ -1,5 +1,6 @@
 import { getSchnorrAccount } from "@aztec/accounts/schnorr";
 import {
+  AztecAddress,
   createPXEClient,
   Fr,
   GrumpkinScalar,
@@ -11,15 +12,15 @@ import { waitForPXE } from "@aztec/aztec.js";
 
 // Setup PXE and other utilities for deployment
 export const setupSandbox1 = async () => {
-  const { PXE_URL = "http://localhost:8080" } = process.env;
-  const pxe1 = createPXEClient(PXE_URL);
+  const { PXE_URL1 = "http://localhost:8080" } = process.env;
+  const pxe1 = createPXEClient(PXE_URL1);
   await waitForPXE(pxe1);
   return pxe1;
 };
 
 export const setupSandbox2 = async () => {
-  const { PXE_URL = "http://localhost:8081" } = process.env;
-  const pxe2 = createPXEClient(PXE_URL);
+  const { PXE_URL2 = "http://localhost:8081" } = process.env;
+  const pxe2 = createPXEClient(PXE_URL2);
   await waitForPXE(pxe2);
   return pxe2;
 };
@@ -44,3 +45,66 @@ export const generatePublicKeys = async () => {
   const [x, y] = publicKey.toFields();
   return { signingPrivateKey, x, y };
 };
+
+let lastBlockPXE1 = 0;
+let lastBlockPXE2 = 0;
+
+export async function eventListener(
+  pxe: PXE,
+  pxeName: string,
+  contractAddress: AztecAddress
+) {
+  const filter = {
+    owner: contractAddress,
+  };
+  // Fetch and listen for logs
+  let noteFound = false;
+  const maxRetries = 10;
+  let retries = 0;
+
+  while (!noteFound && retries < maxRetries) {
+    const logs = await pxe.getIncomingNotes(filter);
+    if (logs.length > 0) {
+      noteFound = true;
+      console.log(
+        `[${pxeName}] Found active note for contract at attempt ${retries + 1}`
+      );
+    } else {
+      console.log(
+        `[${pxeName}] Active note not found. Retrying... (${
+          retries + 1
+        }/${maxRetries})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      retries++;
+    }
+  }
+
+  if (!noteFound) {
+    throw new Error(
+      `[${pxeName}] Contract state did not synchronize after ${maxRetries} attempts.`
+    );
+  }
+}
+
+export function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function retryWithDelay(
+  fn: () => Promise<any>,
+  maxRetries: number = 10,
+  delayMs: number = 3000
+): Promise<any> {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      return await fn();
+    } catch (error) {
+      console.log(`Attempt ${attempt + 1} failed. Retrying...`);
+      attempt++;
+      await delay(delayMs);
+    }
+  }
+  throw new Error(`Failed after ${maxRetries} attempts`);
+}
