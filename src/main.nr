@@ -4,13 +4,15 @@
 
 //they will have this account contract in their PXEs, so they can get the state of it and interact with it
 
-//joe mentionned something about setting it to a dud so that it cannot do anything,
-//need to figure out what he meant and how to do that.
-
+//TODO: Make the account dud so i cannot do anything
+//TODO: Have access gating so that only the group members can do things
+//TODO: Make it easy so anyone can deploy the account
+//TODO: Make the process of people adding the account to their PXEs easy, this will be front end
 mod notes;
 // mod test;
 
 use dep::aztec::macros::aztec;
+
 
 #[aztec]
 contract AccountGroup {
@@ -31,17 +33,17 @@ contract AccountGroup {
 
     use crate::notes::{public_key_note::PublicKeyNote, NewAddressNote::NewAddressNote};
 
+    global ZERO_ADDRESS: AztecAddress = AztecAddress::from_field(0x0000000000000000000000000000000000000000000000000000000000000000);
+
 
     #[storage]
     struct Storage<Context> {
         signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
         admin: PrivateImmutable<NewAddressNote, Context>,
+        group_members: PrivateSet<NewAddressNote, Context>,
         member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>
     }
 
-    //for SchnoorAccount contract
-    //if we send the notes to the PXEs of the users in the group, then they can use the state of the contract to keep shared secrets
-    //that is the idea. 
     #[private]
     #[initializer]
     fn constructor(signing_pub_key_x: Field, signing_pub_key_y: Field, admin: AztecAddress) {
@@ -52,13 +54,24 @@ contract AccountGroup {
         let mut pub_key_note = PublicKeyNote::new(signing_pub_key_x, signing_pub_key_y, this_keys.npk_m.hash());
         storage.signing_public_key.initialize(&mut pub_key_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, this));
 
+        //add admin to the group
         let admin_keys = get_public_keys(admin);
         let mut admin_address_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
         storage.admin.initialize(&mut admin_address_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, admin));
-        // storage.group_members.at(admin).write(true);
+
+        // add admin to the group members
+        let mut admin_member_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
+        storage.group_members.insert(&mut admin_member_note).emit(
+            encode_and_encrypt_note(
+                &mut context,
+                this_keys.ovpk_m,
+                this_keys.ivpk_m,
+                admin
+            )
+        );
     }
 
-    // Note: If you globally change the entrypoint signature don't forget to update account_entrypoint.ts
+    //how i can make the entrypoint as barebones as possible for what i need
     #[private]
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
         let actions = AccountActions::init(&mut context, is_valid_impl);
@@ -73,10 +86,70 @@ contract AccountGroup {
     }
 
     #[private]
+    fn add_member(member: AztecAddress) {
+        let contract_address = context.this_address();
+        assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+        let contract_address_keys = get_public_keys(contract_address);
+        let mut member_address_note = NewAddressNote::new(member, contract_address_keys.npk_m.hash());
+        storage.group_members.insert(&mut member_address_note).emit(
+            encode_and_encrypt_note(
+                &mut context,
+                contract_address_keys.ovpk_m,
+                contract_address_keys.ivpk_m,
+                member
+            )
+        );
+    }
+
+    //cannot return a vector/bounded vec of addresses as there is no serialization/deserialization of them
+    //this is a workaround, get the members in each position of storage and return them
+    #[private]
+    #[view]
+    fn view_member(position:u32) -> AztecAddress {
+        let contract_address = context.this_address();
+        let contract_address_keys = get_public_keys(contract_address);
+        let options = NoteGetterOptions::new();
+        let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+
+        if position < members_notes.len() as u32 {
+            let note = members_notes.get_unchecked(position as u32);
+            note.address
+        } else {
+            ZERO_ADDRESS
+        };
+    }
+
+
+    #[private]
     fn setup_group_payments(creditor: AztecAddress, debtors: [AztecAddress; 2], amount: Field) {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
 
+        //check if the credior and group members are in the group
+        let mut creditor_in_group = false;
+        let mut debtor1_in_group = false;
+        let mut debtor2_in_group = false;
+        let contract_address_keys = get_public_keys(contract_address);
+        let options = NoteGetterOptions::new();
+        let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+        for i in 0..members_notes.max_len() {
+            if i < members_notes.len() {
+                let note = members_notes.get_unchecked(i);
+                if note.address == creditor {
+                    creditor_in_group = true;
+                }
+                if note.address == debtors[0] {
+                    debtor1_in_group = true;
+                }
+                if note.address == debtors[1] {
+                    debtor2_in_group = true;
+                }
+            }
+        }
+        assert(creditor_in_group, "Creditor is not in the group");
+        assert(debtor1_in_group, "Debtor 1 is not in the group");
+        assert(debtor2_in_group, "Debtor 2 is not in the group");
+        
         let shared_amount : u32 = amount as u32 / (debtors.len() + 1);
         for i in 0..2 {
             let debtor = debtors[i];
@@ -95,6 +168,26 @@ contract AccountGroup {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
 
+        //check if the creditor and debtor are in the group
+        let mut creditor_in_group = false;
+        let mut debtor_in_group = false;
+        let contract_address_keys = get_public_keys(contract_address);
+        let options = NoteGetterOptions::new();
+        let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+        for i in 0..members_notes.max_len() {
+            if i < members_notes.len() {
+                let note = members_notes.get_unchecked(i);
+                if note.address == creditor {
+                    creditor_in_group = true;
+                }
+                if note.address == debtor {
+                    debtor_in_group = true;
+                }
+            }
+        }
+        assert(creditor_in_group, "Creditor is not in the group");
+        assert(debtor_in_group, "Debtor is not in the group");
+        
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
         // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
@@ -107,6 +200,27 @@ contract AccountGroup {
     fn make_payment(debtor: AztecAddress, creditor: AztecAddress, amount: Field) {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+
+        //check if the creditor and debtor are in the group
+        let mut creditor_in_group = false;
+        let mut debtor_in_group = false;
+        let contract_address_keys = get_public_keys(contract_address);
+        let options = NoteGetterOptions::new();
+        let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+        for i in 0..members_notes.max_len() {
+            if i < members_notes.len() {
+                let note = members_notes.get_unchecked(i);
+                if note.address == creditor {
+                    creditor_in_group = true;
+                }
+                if note.address == debtor {
+                    debtor_in_group = true;
+                }
+            }
+        }
+        assert(creditor_in_group, "Creditor is not in the group");
+        assert(debtor_in_group, "Debtor is not in the group");
+        
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let new_amount = amount * -1;
@@ -122,6 +236,28 @@ contract AccountGroup {
     fn get_balance(creditor: AztecAddress, debtor: AztecAddress) -> Field {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
+
+        //  //check if the creditor and debtor are in the group, have to type it out
+        //  //cannot get private functions calling other private functions
+        let mut creditor_in_group = false;
+        let mut debtor_in_group = false;
+        let contract_address_keys = get_public_keys(contract_address);
+        let options = NoteGetterOptions::new();
+        let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+        for i in 0..members_notes.max_len() {
+            if i < members_notes.len() {
+                let note = members_notes.get_unchecked(i);
+                if note.address == creditor {
+                    creditor_in_group = true;
+                }
+                if note.address == debtor {
+                    debtor_in_group = true;
+                }
+            }
+        }
+        assert(creditor_in_group, "Creditor is not in the group");
+        assert(debtor_in_group, "Debtor is not in the group");
+
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
@@ -139,12 +275,27 @@ contract AccountGroup {
         total_balance
     }
 
-    //next will be group balances, already this is much more efficient than the other implementation
-    //where i am just firing off notes to the users. 
-    
-
-
-
+    // #[contract_library_method]
+    // fn assert_group_members(context: &mut PrivateContext, creditor: AztecAddress, debtor: AztecAddress, contract_address: AztecAddress) {
+    //     let mut creditor_in_group = false;
+    //     let mut debtor_in_group = false;
+    //     let contract_address_keys = get_public_keys(contract_address);
+    //     let options = NoteGetterOptions::new();
+    //     let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+    //     for i in 0..members_notes.max_len() {
+    //         if i < members_notes.len() {
+    //             let note = members_notes.get_unchecked(i);
+    //             if note.address == creditor {
+    //                 creditor_in_group = true;
+    //             }
+    //             if note.address == debtor {
+    //                 debtor_in_group = true;
+    //             }
+    //         }
+    //     }
+    //     assert(creditor_in_group, "Creditor is not in the group");
+    //     assert(debtor_in_group, "Debtor is not in the group");
+    // }
 
     #[private]
     #[view]
@@ -173,42 +324,5 @@ contract AccountGroup {
             signature,
             outer_hash.to_be_bytes::<32>()
         )
-    }
-
-    /** 
-    * @notice Helper function to check validity of private authwitnesses
-    * @param consumer The address of the consumer of the message
-    * @param message_hash The message hash of the message to check the validity
-    * @return True if the message_hash can be consumed, false otherwise
-    */
-    unconstrained fn lookup_validity(consumer: AztecAddress, inner_hash: Field) -> bool {
-        let public_key = storage.signing_public_key.view_note();
-
-        let message_hash = compute_authwit_message_hash(consumer, context.chain_id(), context.version(), inner_hash);
-
-        let witness: [Field; 64] = get_auth_witness(message_hash);
-
-        let mut signature: [u8; 64] = [0; 64];
-
-        for i in 0..64 {
-            signature[i] = witness[i] as u8;
-        }
-
-        let valid_in_private = std::schnorr::verify_signature(
-            public_key.x,
-            public_key.y,
-            signature,
-            message_hash.to_be_bytes::<32>()
-        );
-
-        //compute the nullifier and check if is is spent
-        //This will BLINDLY TRUST the oracle, but the oracle is us, and 
-        //it is not as part of execution of the contract, so we are good. 
-        let nullifier = compute_authwit_nullifier(context.this_address(), inner_hash);
-        let siloed_nullifier = compute_siloed_nullifier(consumer, nullifier);
-        let lower_wit = get_low_nullifier_membership_witness(context.block_number(), siloed_nullifier);
-        let is_spent = lower_wit.leaf_preimage.nullifier == siloed_nullifier;
-
-        !is_spent & valid_in_private
     }
 }

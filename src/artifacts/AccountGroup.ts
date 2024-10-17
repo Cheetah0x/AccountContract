@@ -121,7 +121,7 @@ export class AccountGroupContract extends ContractBase {
   }
 
   public static get storage(): ContractStorageLayout<
-    "signing_public_key" | "admin" | "member_balances"
+    "signing_public_key" | "admin" | "group_members" | "member_balances"
   > {
     return {
       signing_public_key: {
@@ -130,11 +130,14 @@ export class AccountGroupContract extends ContractBase {
       admin: {
         slot: new Fr(2n),
       },
-      member_balances: {
+      group_members: {
         slot: new Fr(3n),
       },
+      member_balances: {
+        slot: new Fr(4n),
+      },
     } as ContractStorageLayout<
-      "signing_public_key" | "admin" | "member_balances"
+      "signing_public_key" | "admin" | "group_members" | "member_balances"
     >;
   }
 
@@ -177,6 +180,10 @@ export class AccountGroupContract extends ContractBase {
 
   /** Type-safe wrappers for the public methods exposed by the contract. */
   public declare methods: {
+    /** add_member(member: struct) */
+    add_member: ((member: AztecAddressLike) => ContractFunctionInteraction) &
+      Pick<ContractMethod, "selector">;
+
     /** compute_note_hash_and_optionally_a_nullifier(contract_address: struct, nonce: field, storage_slot: field, note_type_id: field, compute_nullifier: boolean, serialized_note: array) */
     compute_note_hash_and_optionally_a_nullifier: ((
       contract_address: AztecAddressLike,
@@ -196,31 +203,8 @@ export class AccountGroupContract extends ContractBase {
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
-    /** entrypoint(app_payload: struct, fee_payload: struct, cancellable: boolean) */
-    entrypoint: ((
-      app_payload: {
-        function_calls: {
-          args_hash: FieldLike;
-          function_selector: FunctionSelectorLike;
-          target_address: AztecAddressLike;
-          is_public: boolean;
-          is_static: boolean;
-        }[];
-        nonce: FieldLike;
-      },
-      fee_payload: {
-        function_calls: {
-          args_hash: FieldLike;
-          function_selector: FunctionSelectorLike;
-          target_address: AztecAddressLike;
-          is_public: boolean;
-          is_static: boolean;
-        }[];
-        nonce: FieldLike;
-        is_fee_payer: boolean;
-      },
-      cancellable: boolean
-    ) => ContractFunctionInteraction) &
+    /** entrypoint() */
+    entrypoint: (() => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
     /** get_admin() */
@@ -231,13 +215,6 @@ export class AccountGroupContract extends ContractBase {
     get_balance: ((
       creditor: AztecAddressLike,
       debtor: AztecAddressLike
-    ) => ContractFunctionInteraction) &
-      Pick<ContractMethod, "selector">;
-
-    /** lookup_validity(consumer: struct, inner_hash: field) */
-    lookup_validity: ((
-      consumer: AztecAddressLike,
-      inner_hash: FieldLike
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
@@ -265,10 +242,8 @@ export class AccountGroupContract extends ContractBase {
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
-    /** verify_private_authwit(inner_hash: field) */
-    verify_private_authwit: ((
-      inner_hash: FieldLike
-    ) => ContractFunctionInteraction) &
+    /** view_member(position: integer) */
+    view_member: ((position: bigint | number) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
   };
 }
