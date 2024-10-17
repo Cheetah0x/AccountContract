@@ -76,6 +76,26 @@ contract AccountGroup {
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
         let actions = AccountActions::init(&mut context, is_valid_impl);
         actions.entrypoint(app_payload, fee_payload, cancellable);
+
+        // let mut is_member = false;
+        // let caller = context.msg_sender();
+        // if caller == context.this_address() {
+        //     is_member = true;
+        // } else {
+        //     let caller_keys = get_public_keys(caller);
+        //     let options = NoteGetterOptions::new();
+        //     let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+
+        //     for i in 0..members_notes.max_len() {
+        //         if i < members_notes.len() {
+        //             let note = members_notes.get_unchecked(i);
+        //             if note.address == caller {
+        //                 is_member = true;
+        //             }
+        //         }
+        //     }
+        //     assert(is_member, "Caller is not a group member");
+        // }
     }
 
     #[private]
@@ -275,28 +295,6 @@ contract AccountGroup {
         total_balance
     }
 
-    // #[contract_library_method]
-    // fn assert_group_members(context: &mut PrivateContext, creditor: AztecAddress, debtor: AztecAddress, contract_address: AztecAddress) {
-    //     let mut creditor_in_group = false;
-    //     let mut debtor_in_group = false;
-    //     let contract_address_keys = get_public_keys(contract_address);
-    //     let options = NoteGetterOptions::new();
-    //     let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
-    //     for i in 0..members_notes.max_len() {
-    //         if i < members_notes.len() {
-    //             let note = members_notes.get_unchecked(i);
-    //             if note.address == creditor {
-    //                 creditor_in_group = true;
-    //             }
-    //             if note.address == debtor {
-    //                 debtor_in_group = true;
-    //             }
-    //         }
-    //     }
-    //     assert(creditor_in_group, "Creditor is not in the group");
-    //     assert(debtor_in_group, "Debtor is not in the group");
-    // }
-
     #[private]
     #[view]
     fn verify_private_authwit(inner_hash: Field) -> Field {
@@ -316,6 +314,7 @@ contract AccountGroup {
         for i in 0..64 {
             signature[i] = witness[i] as u8;
         }
+        let mut is_member = false;
 
         // Verify signature using hardcoded public key
         std::schnorr::verify_signature(

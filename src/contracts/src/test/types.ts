@@ -1,8 +1,9 @@
-import { DefaultAccountContract } from "@aztec/accounts/defaults";
 import {
   AccountManager,
   AuthWitness,
+  AztecAddress,
   CompleteAddress,
+  ContractArtifact,
   Fr,
   GrumpkinScalar,
   PXE,
@@ -12,8 +13,7 @@ import {
   AccountGroupContractArtifact,
   AccountGroupContract,
 } from "../artifacts/AccountGroup.js";
-
-import { AztecAddress } from "@aztec/aztec.js";
+import { DefaultAccountContract } from "@aztec/accounts/defaults";
 import { Salt } from "@aztec/aztec.js/account";
 
 // Extend the account contract to use necessary configurations

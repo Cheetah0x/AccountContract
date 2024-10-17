@@ -32,7 +32,7 @@ import {
   type Wallet,
   type WrappedFieldLike,
 } from "@aztec/aztec.js";
-import AccountGroupContractArtifactJson from "../../target/account_group-AccountGroup.json" assert { type: "json" };
+import AccountGroupContractArtifactJson from "../../../target/account_group-AccountGroup.json" assert { type: "json" };
 export const AccountGroupContractArtifact = loadContractArtifact(
   AccountGroupContractArtifactJson as unknown as NoirCompiledContract
 );
@@ -203,8 +203,31 @@ export class AccountGroupContract extends ContractBase {
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
-    /** entrypoint() */
-    entrypoint: (() => ContractFunctionInteraction) &
+    /** entrypoint(app_payload: struct, fee_payload: struct, cancellable: boolean) */
+    entrypoint: ((
+      app_payload: {
+        function_calls: {
+          args_hash: FieldLike;
+          function_selector: FunctionSelectorLike;
+          target_address: AztecAddressLike;
+          is_public: boolean;
+          is_static: boolean;
+        }[];
+        nonce: FieldLike;
+      },
+      fee_payload: {
+        function_calls: {
+          args_hash: FieldLike;
+          function_selector: FunctionSelectorLike;
+          target_address: AztecAddressLike;
+          is_public: boolean;
+          is_static: boolean;
+        }[];
+        nonce: FieldLike;
+        is_fee_payer: boolean;
+      },
+      cancellable: boolean
+    ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
     /** get_admin() */
@@ -239,6 +262,12 @@ export class AccountGroupContract extends ContractBase {
       creditor: AztecAddressLike,
       debtors: AztecAddressLike[],
       amount: FieldLike
+    ) => ContractFunctionInteraction) &
+      Pick<ContractMethod, "selector">;
+
+    /** verify_private_authwit(inner_hash: field) */
+    verify_private_authwit: ((
+      inner_hash: FieldLike
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
