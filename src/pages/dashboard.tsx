@@ -44,10 +44,6 @@ export default function Dashboard() {
     accountPrivateKey!
   );
 
-  if (!groupContract) {
-    return <div>Loading contract... Please wait.</div>;
-  }
-
   useEffect(() => {
     const onsetup = async () => {
       await createNewWallet();
@@ -69,9 +65,6 @@ export default function Dashboard() {
     onsetup();
   }, []);
 
-  if (!membersData) {
-    return <div>Loading members... Please wait.</div>;
-  }
 
   //Members
   const {
