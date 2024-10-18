@@ -55,3 +55,9 @@ impl PublicKeyNote {
         }
     }
 }
+
+impl Eq for PublicKeyNote {
+    fn eq(self, other: Self) -> bool {
+        (self.x == other.x) & (self.y == other.y) & (self.npk_m_hash == other.npk_m_hash)
+    }
+}

@@ -13,7 +13,6 @@ mod notes;
 
 use dep::aztec::macros::aztec;
 
-
 #[aztec]
 contract AccountGroup {
 
@@ -35,13 +34,12 @@ contract AccountGroup {
 
     global ZERO_ADDRESS: AztecAddress = AztecAddress::from_field(0x0000000000000000000000000000000000000000000000000000000000000000);
 
-
     #[storage]
     struct Storage<Context> {
         signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
         admin: PrivateImmutable<NewAddressNote, Context>,
         group_members: PrivateSet<NewAddressNote, Context>,
-        member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>
+        member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>,
     }
 
     #[private]
@@ -61,14 +59,7 @@ contract AccountGroup {
 
         // add admin to the group members
         let mut admin_member_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
-        storage.group_members.insert(&mut admin_member_note).emit(
-            encode_and_encrypt_note(
-                &mut context,
-                this_keys.ovpk_m,
-                this_keys.ivpk_m,
-                admin
-            )
-        );
+        storage.group_members.insert(&mut admin_member_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, admin));
     }
 
     //how i can make the entrypoint as barebones as possible for what i need
@@ -76,26 +67,6 @@ contract AccountGroup {
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
         let actions = AccountActions::init(&mut context, is_valid_impl);
         actions.entrypoint(app_payload, fee_payload, cancellable);
-
-        // let mut is_member = false;
-        // let caller = context.msg_sender();
-        // if caller == context.this_address() {
-        //     is_member = true;
-        // } else {
-        //     let caller_keys = get_public_keys(caller);
-        //     let options = NoteGetterOptions::new();
-        //     let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
-
-        //     for i in 0..members_notes.max_len() {
-        //         if i < members_notes.len() {
-        //             let note = members_notes.get_unchecked(i);
-        //             if note.address == caller {
-        //                 is_member = true;
-        //             }
-        //         }
-        //     }
-        //     assert(is_member, "Caller is not a group member");
-        // }
     }
 
     #[private]
@@ -105,6 +76,7 @@ contract AccountGroup {
         admin_note.address
     }
 
+    //when adding the member, we should be able to send them a note with the account to register in their PXE
     #[private]
     fn add_member(member: AztecAddress) {
         let contract_address = context.this_address();
@@ -125,7 +97,7 @@ contract AccountGroup {
     //this is a workaround, get the members in each position of storage and return them
     #[private]
     #[view]
-    fn view_member(position:u32) -> AztecAddress {
+    fn view_member(position: u32) -> AztecAddress {
         let contract_address = context.this_address();
         let contract_address_keys = get_public_keys(contract_address);
         let options = NoteGetterOptions::new();
@@ -138,7 +110,6 @@ contract AccountGroup {
             ZERO_ADDRESS
         };
     }
-
 
     #[private]
     fn setup_group_payments(creditor: AztecAddress, debtors: [AztecAddress; 2], amount: Field) {
@@ -169,7 +140,7 @@ contract AccountGroup {
         assert(creditor_in_group, "Creditor is not in the group");
         assert(debtor1_in_group, "Debtor 1 is not in the group");
         assert(debtor2_in_group, "Debtor 2 is not in the group");
-        
+
         let shared_amount : u32 = amount as u32 / (debtors.len() + 1);
         for i in 0..2 {
             let debtor = debtors[i];
@@ -178,9 +149,13 @@ contract AccountGroup {
             // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
 
             let storage_location = storage.member_balances.at(key);
-            increment(storage_location, shared_amount.to_field(), contract_address, contract_address);
+            increment(
+                storage_location,
+                shared_amount.to_field(),
+                contract_address,
+                contract_address
+            );
         }
-
     }
 
     #[private]
@@ -207,7 +182,7 @@ contract AccountGroup {
         }
         assert(creditor_in_group, "Creditor is not in the group");
         assert(debtor_in_group, "Debtor is not in the group");
-        
+
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
         // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
@@ -240,7 +215,6 @@ contract AccountGroup {
         }
         assert(creditor_in_group, "Creditor is not in the group");
         assert(debtor_in_group, "Debtor is not in the group");
-        
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let new_amount = amount * -1;
@@ -248,7 +222,12 @@ contract AccountGroup {
         // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
 
         let storage_location = storage.member_balances.at(key);
-        increment(storage_location, new_amount, contract_address, contract_address);
+        increment(
+            storage_location,
+            new_amount,
+            contract_address,
+            contract_address
+        );
     }
 
     #[private]
@@ -277,7 +256,6 @@ contract AccountGroup {
         }
         assert(creditor_in_group, "Creditor is not in the group");
         assert(debtor_in_group, "Debtor is not in the group");
-
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);

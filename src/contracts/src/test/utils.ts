@@ -1,3 +1,4 @@
+import { PXEWithUrl } from "@/utils/types";
 import { getSchnorrAccount } from "@aztec/accounts/schnorr";
 import {
   AztecAddress,
@@ -11,10 +12,29 @@ import {
 import { waitForPXE } from "@aztec/aztec.js";
 
 // Setup PXE and other utilities for deployment
-export const setupSandbox = async (PXE_URL: string) => {
+export const setupSandbox = async (PXE_URL: string): Promise<PXE> => {
   const pxe = createPXEClient(PXE_URL);
   await waitForPXE(pxe);
   return pxe;
+};
+
+// Initialize PXE instances with their URLs
+export const initializePXEInstances = async (): Promise<PXEWithUrl[]> => {
+  const PXE_URLS = [
+    "http://localhost:8080",
+    "http://localhost:8081",
+    "http://localhost:8082",
+  ];
+
+  const pxeInstances: PXEWithUrl[] = await Promise.all(
+    PXE_URLS.map(async (url) => {
+      const pxe = await setupSandbox(url);
+      return { pxe, url };
+    })
+  );
+
+  console.log("PXE instances initialized:", pxeInstances);
+  return pxeInstances;
 };
 
 // Generate keys and Schnorr account for testing

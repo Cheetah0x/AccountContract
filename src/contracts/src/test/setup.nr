@@ -33,7 +33,7 @@ unconstrained pub fn setup() -> (&mut TestEnvironment, AztecAddress, AztecAddres
     let y = test_account.keys.ivpk_m.inner.y;
     println(f"y: {y}");
 
-    // let contract_address = create_account_contract(&mut env, secret, admin);
+    let contract_address = create_account_contract(&mut env, secret, admin);
 
     let initializer_call_interface = AccountGroup::interface().constructor(x, y, admin);
 
@@ -59,10 +59,14 @@ unconstrained fn create_account_contract( env: &mut TestEnvironment, secret: Fie
     let address = test_account.address;
     cheatcodes::advance_blocks_by(1);
 
-    let selector = FunctionSelector::from_signature("constructor(Field,Field,AztecAddress)");
+    let adminField = admin.to_field();
+    println(f"sadmin: {adminField}");
+
+    let selector = FunctionSelector::from_signature("constructor(Field,Field,Field)");
+  
 
     let mut context = env.private_at(get_block_number());
-    let args = [test_account.keys.ivpk_m.inner.x, test_account.keys.ivpk_m.inner.y, admin.to_field()];
+    let args = [test_account.keys.ivpk_m.inner.x, test_account.keys.ivpk_m.inner.y, adminField];
     let _ = context.call_private_function(address, selector, args);
 
     address

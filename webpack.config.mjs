@@ -82,7 +82,9 @@ export default (_, argv) => ({
     new webpack.DefinePlugin({
       'process.env': {
         NODE_ENV: JSON.stringify(argv.mode || 'production'),
-        PXE_URL: JSON.stringify(process.env.PXE_URL || 'http://localhost:8080'),
+        'process.env.PXE_URL_0': JSON.stringify(process.env.PXE_URL_0 || 'http://localhost:8080'),
+        'process.env.PXE_URL_1': JSON.stringify(process.env.PXE_URL_1 || 'http://localhost:8081'),
+        'process.env.PXE_URL_2': JSON.stringify(process.env.PXE_URL_2 || 'http://localhost:8082'),
       },
     }),
     new webpack.ProvidePlugin({
@@ -104,6 +106,8 @@ export default (_, argv) => ({
       buffer: require.resolve('buffer/'),
       crypto: require.resolve('crypto-browserify'),
       os: require.resolve('os-browserify/browser'),
+      process: require.resolve('process/browser'),
+      stream: require.resolve('stream-browserify'),
       fs: false,
       path: require.resolve('path-browserify'),
       url: require.resolve('url/'),
