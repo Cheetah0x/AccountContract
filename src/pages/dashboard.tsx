@@ -31,39 +31,69 @@ export default function Dashboard() {
 
   const adminPXE = PXEInstances[0].pxe;
 
+   //Contract Deployment
+   const { accountPrivateKey, secret, salt } = useAccountSecrets();
+
   //Account Creation of the Admin with the first PXE Instance
   const { adminWallet, createNewWallet, wait: accountWait } = useAccountCreation(adminPXE);
 
-  //Contract Deployment
-  const { accountPrivateKey, secret } = useAccountSecrets();
+  // Initialize admin wallet when secrets are ready
+  useEffect(() => {
+    const setup = async () => {
+
+      if (accountPrivateKey && secret && salt && !adminWallet) {
+        await createNewWallet();
+        console.log("Admin Wallet Created");
+      }
+      if (adminWallet) {
+        await registerContract();
+        console.log("Contract Registered");
+      }
+      if (secret && groupContract && groupContractWallet && adminWallet) {
+              const newMembersData = useAddMembers(
+                secret,
+                groupContract,
+                groupContractWallet,
+                adminWallet,
+                PXEInstances,
+                salt!
+          );
+          setMembersData(newMembersData);
+          console.log("Members Added");
+        }
+    };
+    setup();
+  }, [accountPrivateKey, secret, salt, adminWallet]);
 
   const { registerContract, groupContract, groupContractWallet, groupContractAddress, wait: contractWait } = useAccountContract(
     adminPXE,
     adminWallet!,
     secret!,
-    accountPrivateKey!
+    accountPrivateKey!,
+    salt!
   );
 
-  useEffect(() => {
-    const onsetup = async () => {
-      await createNewWallet();
-      console.log("Admin Wallet Created");
-      await registerContract();
-      console.log("Contract Registered");
+  // useEffect(() => {
+  //   const onsetup = async () => {
+  //     await createNewWallet();
+  //     console.log("Admin Wallet Created");
+  //     await registerContract();
+  //     console.log("Contract Registered");
 
-      if (secret && groupContract && groupContractWallet && adminWallet) {
-        const newMembersData = useAddMembers(
-          secret,
-          groupContract,
-          groupContractWallet,
-          adminWallet,
-          PXEInstances
-        );
-        setMembersData(newMembersData);
-      }
-    };
-    onsetup();
-  }, []);
+  //     if (secret && groupContract && groupContractWallet && adminWallet) {
+  //       const newMembersData = useAddMembers(
+  //         secret,
+  //         groupContract,
+  //         groupContractWallet,
+  //         adminWallet,
+  //         PXEInstances,
+  //         salt!
+  //       );
+  //       setMembersData(newMembersData);
+  //     }
+  //   };
+  //   onsetup();
+  // }, []);
 
 
   //Members
@@ -73,12 +103,14 @@ export default function Dashboard() {
     memberContracts,
     addMember,
     removeMember,
+    
   } = useAddMembers(
     secret!, 
     groupContract!, 
     groupContractWallet!, 
     adminWallet!,
-    PXEInstances
+    PXEInstances,
+    salt!,
   );
 
   //Group Management

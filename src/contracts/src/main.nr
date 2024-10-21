@@ -16,7 +16,7 @@ use dep::aztec::macros::aztec;
 #[aztec]
 contract AccountGroup {
 
-    use dep::aztec::prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PublicMutable, PrivateSet};
+    use dep::aztec::prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PublicMutable, PrivateSet, PrivateMutable};
     use dep::aztec::encrypted_logs::encrypted_note_emission::encode_and_encrypt_note;
     use dep::authwit::{
         entrypoint::{app::AppPayload, fee::FeePayload}, account::AccountActions,
@@ -53,7 +53,6 @@ contract AccountGroup {
         storage.signing_public_key.initialize(&mut pub_key_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, this));
 
         //add admin to the group
-        let admin_keys = get_public_keys(admin);
         let mut admin_address_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
         storage.admin.initialize(&mut admin_address_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, admin));
 
@@ -65,6 +64,7 @@ contract AccountGroup {
     //how i can make the entrypoint as barebones as possible for what i need
     #[private]
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
+        // assert(false, "This contract is not meant to be interacted with");
         let actions = AccountActions::init(&mut context, is_valid_impl);
         actions.entrypoint(app_payload, fee_payload, cancellable);
     }
@@ -120,7 +120,7 @@ contract AccountGroup {
         let mut creditor_in_group = false;
         let mut debtor1_in_group = false;
         let mut debtor2_in_group = false;
-        let contract_address_keys = get_public_keys(contract_address);
+        // let contract_address_keys = get_public_keys(contract_address);
         let options = NoteGetterOptions::new();
         let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
         for i in 0..members_notes.max_len() {
@@ -303,3 +303,9 @@ contract AccountGroup {
         )
     }
 }
+
+//split into two contracts
+//future steps to make it better. 
+
+//change private set to privatemutable
+//will have to make a bunch of changes to my nargo to get things working. 

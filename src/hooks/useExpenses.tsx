@@ -71,9 +71,10 @@ export const useExpenses = (
 
         const tx = await payerContractInstance.methods
           .make_payment(payerAddress, toAddress, newPayment.amount)
-          .send();
+          .send().wait();
 
-        await tx.wait();
+        console.log("tx", tx);
+
 
         setExpenses((prevExpenses) => [
           ...prevExpenses,
@@ -122,9 +123,9 @@ export const useExpenses = (
         }
   
         const creditorAddress = await memberWallets[newBalance.Creditor].wallet.getAddress();
-        console.log("creditorAddress", creditorAddress);
+        console.log("creditorAddress", creditorAddress.toString());
         const debtorAddress = await memberWallets[newBalance.Debtor].wallet.getAddress();
-        console.log("debtorAddress", debtorAddress);
+        console.log("debtorAddress", debtorAddress.toString());
         console.log("amount", newBalance.Amount);
   
         const tx = await memberAInstance.methods

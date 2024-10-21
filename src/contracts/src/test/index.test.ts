@@ -23,7 +23,6 @@ import {
 import { eventListener, delay, retryWithDelay } from "./utils.js";
 
 const { PXE_URL1 = "http://localhost:8080" } = process.env;
-
 const { PXE_URL2 = "http://localhost:8081" } = process.env;
 const { PXE_URL3 = "http://localhost:8082" } = process.env;
 
@@ -70,7 +69,6 @@ describe("AccountGroup Contract Deployment", () => {
     charlieWallet = await createSchnorrAccount(pxe1);
     charlieAddress = charlieWallet.getAddress();
     console.log("charlieAddress", charlieAddress);
-
     aliceWallet = await createSchnorrAccount(pxe2);
     aliceAddress = aliceWallet.getAddress();
     console.log("aliceAddress", aliceAddress);
@@ -101,7 +99,8 @@ describe("AccountGroup Contract Deployment", () => {
       pxe1,
       secret,
       accountContractPXE1,
-      admin
+      admin,
+      salt
     );
 
     await accountManagerPXE1.register();
@@ -136,7 +135,8 @@ describe("AccountGroup Contract Deployment", () => {
       pxe2,
       secret,
       accountContractPXE1,
-      admin
+      admin,
+      salt
     );
 
     // Register contract wallet in Alice’s PXE
@@ -168,7 +168,8 @@ describe("AccountGroup Contract Deployment", () => {
       pxe3,
       secret,
       accountContractPXE1,
-      admin
+      admin,
+      salt
     );
     await bobManagerPXE3.register();
     const walletPXE3 = await bobManagerPXE3.getWallet();
@@ -252,7 +253,6 @@ describe("AccountGroup Contract Deployment", () => {
   });
 
   //-----------------------------------Adding a member to the group -----------------------------------
-
   it("Views admin as group member PXE1", async () => {
     const viewMember1PXE1 = await contractInstancePXE1.methods
       .view_member(0)
@@ -260,7 +260,6 @@ describe("AccountGroup Contract Deployment", () => {
     console.log("viewMember1PXE1", viewMember1PXE1);
     expect(viewMember1PXE1.toString()).toBe(admin.toString());
   });
-
   it("Adds a member to the group PXE1", async () => {
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
     const addMemberPXE1 = await contractInstancePXE1.methods
@@ -268,28 +267,24 @@ describe("AccountGroup Contract Deployment", () => {
       .send()
       .wait();
     console.log("addMemberPXE1", addMemberPXE1);
-
     const viewMember1PXE1 = await contractInstancePXE1.methods
       .view_member(1)
       .simulate();
     console.log("viewMember1PXE1", viewMember1PXE1);
     expect(viewMember1PXE1.toString()).toBe(aliceAddress.toString());
   });
-
   it("Adds a member to the group PXE2", async () => {
     const addMemberPXE2 = await contractInstancePXE2.methods
       .add_member(bobAddress)
       .send()
       .wait();
     console.log("addMemberPXE2", addMemberPXE2);
-
     const viewMember1PXE2 = await contractInstancePXE2.methods
       .view_member(2)
       .simulate();
     console.log("viewMember1PXE2", viewMember1PXE2);
     expect(viewMember1PXE2.toString()).toBe(bobAddress.toString());
   });
-
   //-----------------------------------Setting the balance and making a payment -----------------------------------
 
   it("it sets balance and makes payment between two accounts PXE1", async () => {
@@ -341,7 +336,6 @@ describe("AccountGroup Contract Deployment", () => {
         .wait()
     ).rejects.toThrow("Debtor is not in the group");
   });
-
   it("fetches the balance between two accounts PXE1", async () => {
     let balance;
     balance = await retryWithDelay(async () => {

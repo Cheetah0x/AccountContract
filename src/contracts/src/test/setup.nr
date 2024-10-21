@@ -14,7 +14,6 @@ use dep::protocol_types::{
     constants::CONTRACT_INSTANCE_LENGTH, contract_instance::ContractInstance
 };
 
-
 //this just does not work, will try using jest. 
 //got it deploying in jest, no idea how to do the same thing in the TXE, for deploy u need a wallet to depoly, cannot do that here
 
@@ -42,7 +41,6 @@ unconstrained pub fn setup() -> (&mut TestEnvironment, AztecAddress, AztecAddres
     println(f"contract_address: {contract_address}");
 
     (&mut env, contract_address, admin)
-
 }
 
 #[test]
@@ -52,9 +50,11 @@ unconstrained fn test_contract_deployment() {
     assert(!contract_address.is_zero(), "Contract deployment failed");
 }
 
-
-
-unconstrained fn create_account_contract( env: &mut TestEnvironment, secret: Field, admin: AztecAddress) -> AztecAddress {
+unconstrained fn create_account_contract(
+    env: &mut TestEnvironment,
+    secret: Field,
+    admin: AztecAddress
+) -> AztecAddress {
     let test_account = cheatcodes::add_account(secret);
     let address = test_account.address;
     cheatcodes::advance_blocks_by(1);
@@ -63,7 +63,6 @@ unconstrained fn create_account_contract( env: &mut TestEnvironment, secret: Fie
     println(f"sadmin: {adminField}");
 
     let selector = FunctionSelector::from_signature("constructor(Field,Field,Field)");
-  
 
     let mut context = env.private_at(get_block_number());
     let args = [test_account.keys.ivpk_m.inner.x, test_account.keys.ivpk_m.inner.y, adminField];
@@ -71,3 +70,7 @@ unconstrained fn create_account_contract( env: &mut TestEnvironment, secret: Fie
 
     address
 }
+
+//look at txeservice
+//change the ad acount, change the artifact and args
+//feedback

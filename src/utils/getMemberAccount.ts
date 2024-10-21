@@ -1,4 +1,4 @@
-import { MemberContracts } from "./types";
+import { MemberContracts, PXEWithUrl } from "./types";
 import { Contract } from "@aztec/aztec.js";
 
 export const getMemberAccount = (

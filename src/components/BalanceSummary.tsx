@@ -25,8 +25,18 @@ export const BalanceSummary: React.FC<BalanceSummaryProps> = ({ members, balance
                 {members
                   .filter((otherMember) => otherMember !== member)
                   .map((otherMember) => {
-                    const balance = balances[member]?.[otherMember] || 0;
-                    const isPositive = balance > 0;
+                    let balance: number | string | bigint = balances[member]?.[otherMember] ?? 0;
+
+                    if (typeof balance === 'bigint') {
+                      balance = Number(balance).toFixed(2);
+                    } else if (typeof balance === 'number') {
+                      balance = Number(balance).toFixed(2);
+                    }
+
+                    const balanceNumber = parseFloat(balance.toString());
+
+                    const isPositive = balanceNumber > 0;
+
                     return (
                       <div
                         key={otherMember}
@@ -46,7 +56,7 @@ export const BalanceSummary: React.FC<BalanceSummaryProps> = ({ members, balance
                           }`}
                         >
                           {isPositive ? "+" : ""}
-                          {balance.toFixed(2)}
+                          {balanceNumber.toFixed(2)} {/* Ensure it's displayed with two decimals */}
                         </span>
                       </div>
                     );

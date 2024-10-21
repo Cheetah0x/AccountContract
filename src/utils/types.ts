@@ -116,3 +116,7 @@ export class AccountGroupManager extends AccountManager {
     this.admin = admin;
   }
 }
+
+export type ContractWithPXE = Contract & {
+  pxe: PXE;
+};

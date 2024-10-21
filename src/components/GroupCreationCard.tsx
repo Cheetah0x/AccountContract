@@ -30,8 +30,11 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
   createGroup,
   PXEInstances,
 }) => {
-  //starting with PXEIndex as 1 as 0 is for the admin when he deploys the contract
+  // Start with PXEIndex as 1 since 0 is for the admin when deploying the contract
   const [selectedPXEIndex, setSelectedPXEIndex] = useState(1);
+  console.log("PXE Instances: ", PXEInstances.length);
+
+
 
   return (
     <Card>
@@ -52,20 +55,28 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
               value={newMember}
               onChange={(e) => setNewMember(e.target.value)}
             />
-            <Select onValueChange={(value) => setSelectedPXEIndex(parseInt(value))}>
+            <Select
+              onValueChange={(value) => setSelectedPXEIndex(parseInt(value))}
+              value={selectedPXEIndex.toString()}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select PXE" />
               </SelectTrigger>
               <SelectContent>
-                {PXEInstances.slice(1).map((instance, index) => (
-                  <SelectItem key={index} value={index.toString()}>
-                    {`PXE ${index + 1}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+                {PXEInstances.map((instance, index) => {
+                    // Skip the admin instance (index 0) and show the others
+                    if (index === 0) return null;
+
+                    return (
+                    <SelectItem key={index} value={index.toString()}>
+                        {`PXE ${index}`}
+                    </SelectItem>
+                    );
+                })}
+                </SelectContent>
             </Select>
 
-            <Button 
+            <Button
               onClick={() => {
                 addMember(newMember, selectedPXEIndex);
                 setNewMember("");
@@ -78,7 +89,7 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
           {members.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {members.map((member, index) => (
-            <div
+                <div
                   key={index}
                   className="flex items-center bg-muted text-muted-foreground rounded-full px-3 py-1 text-sm"
                 >

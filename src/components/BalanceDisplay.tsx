@@ -4,7 +4,7 @@ import { ArrowDownLeft, ArrowUpRight } from "lucide-react"
 
 interface Balances {
   [member: string]: {
-    [otherMember: string]: number
+    [otherMember: string]: number | BigInt
   }
 }
 
@@ -27,9 +27,17 @@ export default function BalanceDisplay({ balances, members }: BalanceDisplayProp
                 <CardTitle className="text-lg">{member}</CardTitle>
               </CardHeader>
               <CardContent className="p-4">
-                {members.filter(otherMember => otherMember !== member).map(otherMember => {
-                  const balance = balances[member]?.[otherMember] || 0
-                  const isPositive = balance > 0
+              {members.filter(otherMember => otherMember !== member).map(otherMember => {
+                  let balance = balances[member]?.[otherMember] || 0;
+                  let displayBalance: string;
+
+                  if (typeof balance === 'bigint') {
+                    displayBalance = balance.toString();
+                  } else {
+                    displayBalance = Number(balance).toFixed(2);
+                  }
+
+                  const isPositive = Number(balance) > 0;
                   return (
                     <div key={otherMember} className="flex justify-between items-center py-2">
                       <span className="flex items-center">
@@ -41,7 +49,7 @@ export default function BalanceDisplay({ balances, members }: BalanceDisplayProp
                         {otherMember}
                       </span>
                       <span className={`font-bold ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                        {isPositive ? '+' : ''}{balance.toFixed(2)}
+                        {isPositive ? '+' : ''}{displayBalance}
                       </span>
                     </div>
                   )

@@ -12,12 +12,14 @@ export const useAddMembers = (
     accountContract:AccountGroupContractClass,
     groupContractWallet:Wallet,
     adminWallet:AccountWalletWithSecretKey,
-    PXEInstances: PXEWithUrl[]
+    PXEInstances: PXEWithUrl[],
+    salt: Fr,
 ) => {
   const [members, setMembers] = useState<string[]>([]);
   const [memberWallets, setMemberWallets] = useState<MemberWallets>({});
   const [memberContracts, setMemberContracts] = useState<MemberContracts>({});
   const [adminMemberAdded, setAdminMemberAdded] = useState<boolean>(false);
+  const [contractInstanceWithWalletAdmin, setContractInstanceWithWalletAdmin] = useState<AccountGroupContract>();
 
     // Use useEffect to add the admin to the members list once it's ready
     useEffect(() => {
@@ -38,18 +40,24 @@ export const useAddMembers = (
           const contractInstanceWithWallet = await AccountGroupContract.at(
             contractAddress,
             groupContractWallet
-          );
+          )
+
+          //check members
+          const member = await contractInstanceWithWallet.methods.view_member(0).simulate();
+          const member0 : AztecAddress = member;
+          console.log("members", member0.toString());
   
           // Store the admin's wallet and contract instance
           setMembers((prevMembers) => [...prevMembers, adminName]);
-          setMemberWallets((prev) => ({
-            ...prev,
-            [adminName]: { wallet: adminWallet },
-          }));
-          setMemberContracts((prev) => ({
-            ...prev,
-            [adminName]: { walletInstance: contractInstanceWithWallet },
-          }));
+        setMemberWallets((prev) => ({
+          ...prev,
+          [adminName]: { wallet: adminWallet },
+        }));
+        setMemberContracts((prev) => ({
+          ...prev,
+          [adminName]: { walletInstance: contractInstanceWithWallet },
+        }));
+          setContractInstanceWithWalletAdmin(contractInstanceWithWallet );
           setAdminMemberAdded(true);
         }
       };
@@ -71,7 +79,7 @@ export const useAddMembers = (
       }
 
       const memberPXE = PXEInstances[pxeIndex].pxe;
-      console.log("memberPXE", memberPXE);
+      console.log("memberPXE", pxeIndex);
 
       try{
         //Generate a new secret for the member's account
@@ -94,6 +102,7 @@ export const useAddMembers = (
           secret,
           accountContract,
           adminAddress,
+          salt
         );
         console.log("accountGroupManager", accountGroupManager);
         await accountGroupManager.register();
@@ -108,12 +117,23 @@ export const useAddMembers = (
         console.log("contractInstanceWithWallet", contractInstanceWithWallet);
 
         const memberAddress = await memberWallet.getAddress();
-        const tx = await contractInstanceWithWallet.methods.add_member(memberAddress);
-        console.log("member added to group contract", tx);
+        console.log("memberAddress", memberAddress.toString());
+        if(contractInstanceWithWalletAdmin){
+          console.log("adding member", memberAddress.toString());
+          const tx = await contractInstanceWithWalletAdmin.methods.add_member(memberAddress).send().wait();
+          console.log("member added to group contract", tx);
+        
 
-        const viewMember = await contractInstanceWithWallet.methods.view_member(0);
-        console.log("viewMember", viewMember);
-        const viewMember2 = await contractInstanceWithWallet.methods.view_member(1);
+        const viewMember = await contractInstanceWithWalletAdmin.methods.view_member(0).simulate();
+        const member0: AztecAddress = viewMember;
+        console.log("viewMember 0 ", member0.toString());
+        const viewMember2 = await contractInstanceWithWalletAdmin.methods.view_member(1).simulate();
+        const member1: AztecAddress = viewMember2;
+        console.log("viewMember 1 ", member1.toString());
+        const viewMember3 = await contractInstanceWithWalletAdmin.methods.view_member(2).simulate();
+        const member2: AztecAddress = viewMember3;
+        console.log("viewMember 2 ", member2.toString());
+        }
 
         //Store the member's wallet and contract instance
         setMembers((prevMembers) => [...prevMembers, name]);
@@ -157,5 +177,6 @@ export const useAddMembers = (
     memberContracts,
     addMember,
     removeMember,
+    contractInstanceWithWalletAdmin
   };
 };
