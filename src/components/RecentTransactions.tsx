@@ -47,7 +47,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ expenses
                     {transaction.type === "expense"
                       ? "paid by"
                       : transaction.type === "payment"
-                      ? "paid to"
+                      ? "paid by"
                       : "set by"}{" "}
                     {transaction.paidBy}
                   </span>

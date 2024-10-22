@@ -69,7 +69,7 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
 
                     return (
                     <SelectItem key={index} value={index.toString()}>
-                        {`PXE ${index}`}
+                        {`PXE ${index + 1}`}
                     </SelectItem>
                     );
                 })}

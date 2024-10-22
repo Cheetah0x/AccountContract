@@ -177,11 +177,15 @@ export const useExpenses = (
                     console.log(`Other member address: ${otherMemberAddress}`);
 
                     // Fetch BigInt values
-                    const Result = await contractInstance.methods
+                    const Credit = await contractInstance.methods
                       .get_balance(memberAddress, otherMemberAddress)
                       .simulate();
+                    
+                    const Debt = await contractInstance.methods
+                      .get_balance(otherMemberAddress, memberAddress)
+                      .simulate();
 
-                    const balance = Result;
+                    const balance = Credit - Debt;
                     console.log("balance", balance);
 
                     updatedBalances[member][otherMember] = balance;
