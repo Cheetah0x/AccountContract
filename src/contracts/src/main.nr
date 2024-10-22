@@ -20,7 +20,7 @@ contract AccountGroup {
     use dep::aztec::encrypted_logs::encrypted_note_emission::encode_and_encrypt_note;
     use dep::authwit::{
         entrypoint::{app::AppPayload, fee::FeePayload}, account::AccountActions,
-        auth_witness::get_auth_witness, auth::{compute_authwit_nullifier, compute_authwit_message_hash}
+        auth_witness::get_auth_witness
     };
     use dep::aztec::{hash::compute_siloed_nullifier, keys::getters::get_public_keys};
     use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
@@ -217,17 +217,12 @@ contract AccountGroup {
         assert(debtor_in_group, "Debtor is not in the group");
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
-        let new_amount = amount * -1;
+        // let new_amount = amount * -1;
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
         // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
 
         let storage_location = storage.member_balances.at(key);
-        increment(
-            storage_location,
-            new_amount,
-            contract_address,
-            contract_address
-        );
+        decrement(storage_location, amount, contract_address, contract_address);
     }
 
     #[private]

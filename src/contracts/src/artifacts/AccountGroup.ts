@@ -28,6 +28,7 @@ import {
   NoteSelector,
   Point,
   type PublicKey,
+  PublicKeys,
   type UnencryptedL2Log,
   type Wallet,
   type WrappedFieldLike,
@@ -69,7 +70,7 @@ export class AccountGroupContract extends ContractBase {
     admin: AztecAddressLike
   ) {
     return new DeployMethod<AccountGroupContract>(
-      Fr.ZERO,
+      PublicKeys.empty(),
       wallet,
       AccountGroupContractArtifact,
       AccountGroupContract.at,
@@ -80,15 +81,15 @@ export class AccountGroupContract extends ContractBase {
   /**
    * Creates a tx to deploy a new instance of this contract using the specified public keys hash to derive the address.
    */
-  public static deployWithPublicKeysHash(
-    publicKeysHash: Fr,
+  public static deployWithPublicKeys(
+    publicKeys: PublicKeys,
     wallet: Wallet,
     signing_pub_key_x: FieldLike,
     signing_pub_key_y: FieldLike,
     admin: AztecAddressLike
   ) {
     return new DeployMethod<AccountGroupContract>(
-      publicKeysHash,
+      publicKeys,
       wallet,
       AccountGroupContractArtifact,
       AccountGroupContract.at,
@@ -100,11 +101,11 @@ export class AccountGroupContract extends ContractBase {
    * Creates a tx to deploy a new instance of this contract using the specified constructor method.
    */
   public static deployWithOpts<M extends keyof AccountGroupContract["methods"]>(
-    opts: { publicKeysHash?: Fr; method?: M; wallet: Wallet },
+    opts: { publicKeys?: PublicKeys; method?: M; wallet: Wallet },
     ...args: Parameters<AccountGroupContract["methods"][M]>
   ) {
     return new DeployMethod<AccountGroupContract>(
-      opts.publicKeysHash ?? Fr.ZERO,
+      opts.publicKeys ?? PublicKeys.empty(),
       opts.wallet,
       AccountGroupContractArtifact,
       AccountGroupContract.at,
