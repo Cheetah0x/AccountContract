@@ -1,18 +1,43 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DollarSign } from "lucide-react";
-import { Group, Expense, NewExpense } from "@/utils/types";
+import { Group, NewExpense } from "@/utils/types";
 
 interface AddExpenseDialogProps {
   group: Group;
   newExpense: NewExpense;
   setNewExpense: (expense: NewExpense) => void;
-  addExpense: () => void;
+  addExpense: () => Promise<void>;
 }
+
+/**
+ * AddExpenseDialog component allows users to add a new expense to the specified group.
+ * It opens a modal (dialog) where users can enter the description, amount, and payer of the expense.
+ *
+ * @param {Group} group - The group object that contains the list of members. Used to select the payer of the expense.
+ * @param {NewExpense} newExpense - The current state of the new expense being added.
+ * @param {function} setNewExpense - Function to update the newExpense state with new input values.
+ * @param {function} addExpense - Function to submit the new expense and add it to the group's expenses.
+ *
+ */
 
 export const AddExpenseDialog: React.FC<AddExpenseDialogProps> = ({
   group,

@@ -5,8 +5,7 @@ use dep::aztec::{
     macros::notes::note
 };
 
-//Stores a public key conposed of two fields
-//does not have a once yet
+//Stores a public key composed of two fields
 
 #[note]
 pub struct PublicKeyNote {

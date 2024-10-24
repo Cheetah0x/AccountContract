@@ -99,7 +99,8 @@ describe("AccountGroup Contract Deployment", () => {
       pxe1,
       secret,
       accountContractPXE1,
-      admin
+      admin,
+      salt
     );
 
     await accountManagerPXE1.register();

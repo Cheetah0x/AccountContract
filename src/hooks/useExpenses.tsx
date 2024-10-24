@@ -2,26 +2,71 @@ import { useState } from "react";
 import { Expense, Group, Balances, MemberContracts, MemberWallets, NewExpense } from "@/utils/types";
 import { getMemberAccount } from "@/utils/getMemberAccount";
 
+/**
+ * Hook manages expenses, payments and balances within the group contract.
+ * Handles the state and logic for adding expenses, making payments, setting balances, and fetching balances.
+ *
+ * @param group - The group object containing information about the group members.
+ * @param memberWallets - A dictionary of member names and their associated wallet instances.
+ * @param memberContracts - A dictionary of member names and their associated contract instances.
+ *
+ * @returns {Object} An object containing the following:
+ * - `expenses`: The list of expenses or payments made within the group.
+ * - `balances`: An object that stores the balances between group members.
+ * - `newExpense`: The current new expense being added (description, amount, paidBy).
+ * - `setNewExpense`: Function to update the `newExpense` state.
+ * - `addExpense`: Function to add a new expense to the group contract.
+ * - `newPayment`: The current new payment being processed (to, amount).
+ * - `setNewPayment`: Function to update the `newPayment` state.
+ * - `addPayment`: Function to add a payment between group members in the contract.
+ * - `payer`: The current payer making the payment.
+ * - `setPayer`: Function to update the `payer` state.
+ * - `newBalance`: The current balance being set between members (Creditor, Debtor, Amount).
+ * - `setNewBalance`: Function to update the `newBalance` state.
+ * - `setBalanceBetweenMembers`: Function to set a balance between two members in the contract.
+ * - `fetchBalances`: Function to fetch the current balances between group members.
+ *
+ * This hook performs the following operations:
+ * 1. Expenses: Handles adding new group expenses where one member pays on behalf of others.
+ * 2. Payments: Facilitates payments between group members.
+ * 3. Balances: Manages setting and fetching balances between members of the group.
+ */
+
 export const useExpenses = (
   group: Group | null,
   memberWallets: MemberWallets,
   memberContracts: MemberContracts
 ) => {
+  // State to store the list of expenses or payments within the group
   const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  // State to store the balances between group members
   const [balances, setBalances] = useState<Balances>({});
+
+  // State to track the new expense being added
   const [newExpense, setNewExpense] = useState<NewExpense>({
     description: "",
     paidBy: "",
     amount: 0,
   });
+
+  // State to track a new payment being made between members
   const [newPayment, setNewPayment] = useState({ to: "", amount: 0 });
+
+  // State to track a new balance being set between members
   const [newBalance, setNewBalance] = useState({
     Creditor: "",
     Debtor: "",
     Amount: 0,
   });
+
+  // State to track the current payer for the payment process
   const [payer, setPayer] = useState("");
 
+  /**
+   * Adds a new expense to the group contract, where one member (payer) covers an expense for the others.
+   * It calls the `setup_group_payments` method of the contract to register the expense and updates the state.
+   */
   const addExpense = async () => {
     if (newExpense.description && newExpense.amount && newExpense.paidBy) {
       try {
@@ -34,6 +79,7 @@ export const useExpenses = (
         );
         console.log("expense amount", newExpense.amount);
 
+        // Register the group payment in the contract
         const tx = await payerContractInstance.methods
           .setup_group_payments(
             paidByAddress,
@@ -44,6 +90,7 @@ export const useExpenses = (
 
         await tx.wait();
 
+        // Update state with the new expense
         setExpenses((prevExpenses) => [
           ...prevExpenses,
           { 
@@ -61,6 +108,10 @@ export const useExpenses = (
     }
   };
 
+  /**
+   * Adds a new payment from one member to another in the group contract.
+   * It calls the `make_payment` method of the contract and updates the state.
+   */
   const addPayment = async () => {
     if (payer && newPayment.to && newPayment.amount) {
       try {
@@ -69,13 +120,14 @@ export const useExpenses = (
         const toAddress = memberWallets[newPayment.to].wallet.getAddress();
         console.log("amount", newPayment.amount);
 
+        // Register the payment in the contract
         const tx = await payerContractInstance.methods
           .make_payment(payerAddress, toAddress, newPayment.amount)
           .send().wait();
 
         console.log("tx", tx);
 
-
+        // Update state with the new payment
         setExpenses((prevExpenses) => [
           ...prevExpenses,
           {
@@ -97,15 +149,14 @@ export const useExpenses = (
     }
   };
 
+  /**
+   * Sets a balance between a creditor and a debtor in the group contract.
+   * It calls the `set_balance` method of the contract and updates the state.
+   */
   const setBalanceBetweenMembers = async () => {
     if (newBalance.Creditor && newBalance.Debtor && newBalance.Amount) {
       try {
         const memberAInstance = getMemberAccount(memberContracts, newBalance.Creditor);
-  
-        // Add debugging logs
-        console.log("memberContracts", memberContracts);
-        console.log("newBalance.Creditor", newBalance.Creditor);
-        console.log("memberAInstance", memberAInstance);
   
         if (!memberAInstance) {
           console.error(`No contract instance found for creditor: ${newBalance.Creditor}`);
@@ -113,27 +164,18 @@ export const useExpenses = (
           return;
         }
   
-        console.log("memberAInstance.methods", memberAInstance.methods);
-        console.log("Available methods:", Object.keys(memberAInstance.methods));
-  
-        if (!memberAInstance.methods.set_balance) {
-          console.error("set_balance method not found on contract instance.");
-          alert("set_balance method not found on contract instance.");
-          return;
-        }
-  
         const creditorAddress = await memberWallets[newBalance.Creditor].wallet.getAddress();
-        console.log("creditorAddress", creditorAddress.toString());
         const debtorAddress = await memberWallets[newBalance.Debtor].wallet.getAddress();
-        console.log("debtorAddress", debtorAddress.toString());
         console.log("amount", newBalance.Amount);
   
+        // Set balance in the contract
         const tx = await memberAInstance.methods
           .set_balance(creditorAddress, debtorAddress, newBalance.Amount)
           .send();
   
         await tx.wait();
 
+        // Update state with the balance set operation
         setExpenses((prevExpenses) => [
           ...prevExpenses,
           {
@@ -154,6 +196,10 @@ export const useExpenses = (
     }
   };
 
+  /**
+   * Fetches the balances between all members of the group by calling the `get_balance` method in the contract.
+   * This updates the `balances` state with the retrieved balances.
+   */
   const fetchBalances = async () => {
     if (group) {
       const updatedBalances: Balances = {};
@@ -176,7 +222,7 @@ export const useExpenses = (
                     const otherMemberAddress = memberWallets[otherMember].wallet.getAddress();
                     console.log(`Other member address: ${otherMemberAddress}`);
 
-                    // Fetch BigInt values
+                    // Fetch BigInt values for credit and debt
                     const Credit = await contractInstance.methods
                       .get_balance(memberAddress, otherMemberAddress)
                       .simulate();
@@ -217,6 +263,7 @@ export const useExpenses = (
     }
   };
 
+  // Return all relevant state and functions for managing expenses and balances
   return {
     expenses,
     balances,

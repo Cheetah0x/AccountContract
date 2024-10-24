@@ -1,13 +1,13 @@
-//the idea here is that the group contract is just going to be a schnoor account
-//will play around with this to see if others can interact with it and get the keys
-//if so, they can use the state of the contract to keep shared secrets
 
-//they will have this account contract in their PXEs, so they can get the state of it and interact with it
+//TODO: Make the account dud, this will involve making the entry point to nothing.
+//TODO: Explore better ways to access gate the account contract
+//TODO: Make it so that you can send notes when adding members to improve the UX of adding members, not currently possible with the current note system
+//TODO: Testing with the TXE
+//TODO: Change the member_balances to a PrivateMutable note instead of a PrivateSet,
+//      The ValueNote helpers are designed for PrivateSet so that is being used for now
+//TODO: Split the logic into two contracts, one for the account and one for the group, that only the account can access.
 
-//TODO: Make the account dud so i cannot do anything
-//TODO: Have access gating so that only the group members can do things
-//TODO: Make it easy so anyone can deploy the account
-//TODO: Make the process of people adding the account to their PXEs easy, this will be front end
+
 mod notes;
 // mod test;
 
@@ -36,11 +36,19 @@ contract AccountGroup {
 
     #[storage]
     struct Storage<Context> {
-        signing_public_key: PrivateImmutable<PublicKeyNote, Context>,
-        admin: PrivateImmutable<NewAddressNote, Context>,
-        group_members: PrivateSet<NewAddressNote, Context>,
-        member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>,
+        signing_public_key: PrivateImmutable<PublicKeyNote, Context>, //Stores the public key for the Schnorr account (immutably)
+        admin: PrivateImmutable<NewAddressNote, Context>, //Stores the admin address (immutably)
+        group_members: PrivateSet<NewAddressNote, Context>, //Stores the group members (privately)
+        member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>, //Stores the balances of the group members (privately)
     }
+
+    /**
+    * Constructor: Initializes the contract with a signing public key, admin address
+    *
+    * @param signing_pub_key_x - The x coordinate of the public key for the Schnorr signature
+    * @param signing_pub_key_y - The y coordinate of the public key for the Schnorr signature
+    * @param admin - The admin address
+    */
 
     #[private]
     #[initializer]
@@ -49,19 +57,46 @@ contract AccountGroup {
         let this_keys = get_public_keys(this);
         //not emitting outgoing for msg_sender here to not have to register keys for the contract through which we deploy this (typically MultiCallEntryPoint).
 
+        //Create the public key note for the Schnorr Account
         let mut pub_key_note = PublicKeyNote::new(signing_pub_key_x, signing_pub_key_y, this_keys.npk_m.hash());
-        storage.signing_public_key.initialize(&mut pub_key_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, this));
+        storage.signing_public_key
+            .initialize(&mut pub_key_note)
+            .emit(encode_and_encrypt_note(
+                &mut context,
+                this_keys.ovpk_m,
+                this_keys.ivpk_m,
+                this
+            ));
 
-        //add admin to the group
+        //Initialize the admin note and emit the encrypted note
         let mut admin_address_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
-        storage.admin.initialize(&mut admin_address_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, admin));
+        storage.admin
+            .initialize(&mut admin_address_note)
+            .emit(encode_and_encrypt_note(
+                &mut context,
+                this_keys.ovpk_m,
+                this_keys.ivpk_m,
+                admin
+            )
+        );
 
-        // add admin to the group members
+        //Add the admin to the group members set.
         let mut admin_member_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
-        storage.group_members.insert(&mut admin_member_note).emit(encode_and_encrypt_note(&mut context, this_keys.ovpk_m, this_keys.ivpk_m, admin));
+        storage.group_members
+            .insert(&mut admin_member_note)
+            .emit(encode_and_encrypt_note(
+                &mut context,
+                this_keys.ovpk_m,
+                this_keys.ivpk_m,
+                admin
+            )
+        );
     }
 
-    //how i can make the entrypoint as barebones as possible for what i need
+    /**
+    * Entrypoint function to initialize actions for the Schnorr Account
+    * Can make this do nothing as this contract is not meant to interact with anything, just to store state. 
+    */
     #[private]
     fn entrypoint(app_payload: AppPayload, fee_payload: FeePayload, cancellable: bool) {
         // assert(false, "This contract is not meant to be interacted with");
@@ -69,6 +104,11 @@ contract AccountGroup {
         actions.entrypoint(app_payload, fee_payload, cancellable);
     }
 
+    /**
+     * Retrieves the admin address of the contract.
+     * 
+     * @returns {AztecAddress} The admin's Aztec address.
+     */
     #[private]
     #[view]
     fn get_admin() -> pub AztecAddress {
@@ -76,7 +116,12 @@ contract AccountGroup {
         admin_note.address
     }
 
-    //when adding the member, we should be able to send them a note with the account to register in their PXE
+    /**
+     * Adds a member to the group.
+     * In the future this can be improved to send the member a note to register in their PXE, currently not possible with the current note system.
+     * 
+     * @param member - Aztec address of the new group member.
+     */
     #[private]
     fn add_member(member: AztecAddress) {
         let contract_address = context.this_address();
@@ -93,8 +138,14 @@ contract AccountGroup {
         );
     }
 
-    //cannot return a vector/bounded vec of addresses as there is no serialization/deserialization of them
-    //this is a workaround, get the members in each position of storage and return them
+    
+    /**
+     * View a specific group member at a given position.
+     * This is a workarounf for testing purposes
+     * 
+     * @param position - Index of the group member to view.
+     * @returns {AztecAddress} The Aztec address of the member, or ZERO_ADDRESS if out of bounds.
+     */
     #[private]
     #[view]
     fn view_member(position: u32) -> AztecAddress {
@@ -111,16 +162,24 @@ contract AccountGroup {
         };
     }
 
+    /**
+     * Sets up shared payments between a creditor and debtors.
+     * 
+     * @param creditor - The creditor's Aztec address.
+     * @param debtors - An array of debtor Aztec addresses.
+     * @param amount - The amount to distribute between the debtors.
+     */
     #[private]
     fn setup_group_payments(creditor: AztecAddress, debtors: [AztecAddress; 2], amount: Field) {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
 
-        //check if the credior and group members are in the group
+        //Check that teh creditor and debtors are members of the group
+        //This is not an optimal approach, better methods will need to be explored in the future. 
         let mut creditor_in_group = false;
         let mut debtor1_in_group = false;
         let mut debtor2_in_group = false;
-        // let contract_address_keys = get_public_keys(contract_address);
+
         let options = NoteGetterOptions::new();
         let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
         for i in 0..members_notes.max_len() {
@@ -149,6 +208,7 @@ contract AccountGroup {
             // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
 
             let storage_location = storage.member_balances.at(key);
+            //Using the ValueNote helpers to increment the balance
             increment(
                 storage_location,
                 shared_amount.to_field(),
@@ -158,6 +218,13 @@ contract AccountGroup {
         }
     }
 
+    /**
+     * Sets the balance between a creditor and a debtor.
+     * 
+     * @param creditor - The creditor's Aztec address.
+     * @param debtor - The debtor's Aztec address.
+     * @param amount - The amount of the balance.
+     */
     #[private]
     fn set_balance(creditor: AztecAddress, debtor: AztecAddress, amount: Field) {
         let contract_address = context.this_address();
@@ -185,12 +252,18 @@ contract AccountGroup {
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
-        // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
 
         let storage_location = storage.member_balances.at(key);
         increment(storage_location, amount, contract_address, contract_address);
     }
 
+    /**
+     * Processes a payment from a debtor to a creditor.
+     * 
+     * @param debtor - The debtor's Aztec address.
+     * @param creditor - The creditor's Aztec address.
+     * @param amount - The payment amount.
+     */
     #[private]
     fn make_payment(debtor: AztecAddress, creditor: AztecAddress, amount: Field) {
         let contract_address = context.this_address();
@@ -217,27 +290,32 @@ contract AccountGroup {
         assert(debtor_in_group, "Debtor is not in the group");
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
-        // let new_amount = amount * -1;
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
-        // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
 
         let storage_location = storage.member_balances.at(key);
         decrement(storage_location, amount, contract_address, contract_address);
     }
 
+
+    /**
+     * Retrieves the balance between a creditor and a debtor.
+     * 
+     * @param creditor - The creditor's Aztec address.
+     * @param debtor - The debtor's Aztec address.
+     * @returns {Field} The balance amount between the creditor and debtor.
+     */
     #[private]
     #[view]
     fn get_balance(creditor: AztecAddress, debtor: AztecAddress) -> Field {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
 
-        //  //check if the creditor and debtor are in the group, have to type it out
-        //  //cannot get private functions calling other private functions
         let mut creditor_in_group = false;
         let mut debtor_in_group = false;
         let contract_address_keys = get_public_keys(contract_address);
         let options = NoteGetterOptions::new();
         let members_notes: BoundedVec<NewAddressNote, 16> = storage.group_members.get_notes(options);
+
         for i in 0..members_notes.max_len() {
             if i < members_notes.len() {
                 let note = members_notes.get_unchecked(i);
@@ -249,12 +327,13 @@ contract AccountGroup {
                 }
             }
         }
+
         assert(creditor_in_group, "Creditor is not in the group");
         assert(debtor_in_group, "Debtor is not in the group");
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
-        // let key = pedersen_hash([creditor.to_field(), debtor.to_field()]);
+
         let options = NoteGetterOptions::new();
         let balance_notes: BoundedVec<ValueNote, 16> = storage.member_balances.at(key).get_notes(options);
 
@@ -268,6 +347,12 @@ contract AccountGroup {
         total_balance
     }
 
+     /**
+     * Verifies an authorization witness using a private signature.
+     * 
+     * @param inner_hash - The inner hash for authentication.
+     * @returns {Field} A field representing the verification result.
+     */
     #[private]
     #[view]
     fn verify_private_authwit(inner_hash: Field) -> Field {
@@ -275,6 +360,13 @@ contract AccountGroup {
         actions.verify_private_authwit(inner_hash)
     }
 
+     /**
+     * Verifies if the provided signature is valid for the account.
+     * 
+     * @param context - The private context of the contract.
+     * @param outer_hash - The hash used for signature verification.
+     * @returns {bool} True if the signature is valid, false otherwise.
+     */
     #[contract_library_method]
     fn is_valid_impl(context: &mut PrivateContext, outer_hash: Field) -> bool {
         let storage = Storage::init(context);
@@ -299,8 +391,3 @@ contract AccountGroup {
     }
 }
 
-//split into two contracts
-//future steps to make it better. 
-
-//change private set to privatemutable
-//will have to make a bunch of changes to my nargo to get things working. 

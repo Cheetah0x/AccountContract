@@ -28,73 +28,94 @@ const { PXE_URL3 = "http://localhost:8082" } = process.env;
 
 // Test case to deploy the contract
 describe("AccountGroup Contract Deployment", () => {
+  //PXE instances
   let pxe1: PXE;
   let pxe2: PXE;
   let pxe3: PXE;
+
+  //Logger
   let logger: DebugLogger;
-  let contractAddressPXE1: AztecAddress;
+
+  //Wallets
   let adminAccount: AccountWallet;
   let aliceWallet: Wallet;
   let bobWallet: Wallet;
   let charlieWallet: Wallet;
+
+  //Addresses
+  let contractAddressPXE1: AztecAddress;
   let admin: AztecAddress;
   let aliceAddress: AztecAddress;
   let bobAddress: AztecAddress;
   let charlieAddress: AztecAddress;
+
+  //Keys
   let accountPrivateKey: GrumpkinScalar;
   let contractAddressPXE2: AztecAddress;
   let contractAddressPXE3: AztecAddress;
   let salt: Fr;
   let secret: Fr;
+
+  //Contract instances and Wallets
   let contractAccountPXE1: Wallet;
   let contractAccountPXE2: Wallet;
   let contractAccountPXE3: Wallet;
   let contractInstancePXE1: AccountGroupContract;
   let contractInstancePXE2: AccountGroupContract;
   let contractInstancePXE3: AccountGroupContract;
+
   let partialAddress: Fr;
+
+  //Contract Class
   let accountContractPXE1: AccountGroupContractClass;
 
+  //-----------------------------------Setup-----------------------------------
+
   beforeAll(async () => {
+    //Initialiing the Logger
     logger = createDebugLogger("aztec:account-group");
+
+    //Setting up the PXE instances
     pxe1 = await setupSandbox(PXE_URL1);
     pxe2 = await setupSandbox(PXE_URL2);
     pxe3 = await setupSandbox(PXE_URL3);
 
+    //Creating the admin account on PXE1
     adminAccount = await createSchnorrAccount(pxe1);
-    console.log("admin", adminAccount);
     admin = adminAccount.getAddress();
-    console.log("adminAddress", admin);
 
-    charlieWallet = await createSchnorrAccount(pxe1);
-    charlieAddress = charlieWallet.getAddress();
-    console.log("charlieAddress", charlieAddress);
+    //Creating Alice's account on PXE2
     aliceWallet = await createSchnorrAccount(pxe2);
     aliceAddress = aliceWallet.getAddress();
-    console.log("aliceAddress", aliceAddress);
 
+    //Creating Bob's account on PXE3
     bobWallet = await createSchnorrAccount(pxe3);
     bobAddress = bobWallet.getAddress();
-    console.log("bobAddress", bobAddress);
+
+    //Creating Charlie's account on PXE1, (not added to the group)
+    charlieWallet = await createSchnorrAccount(pxe1);
+    charlieAddress = charlieWallet.getAddress();
   });
 
   //-----------------------------------Registering accounts on PXEs -----------------------------------
 
   it("Deploys the AccountGroupContract", async () => {
-    //in the future may need to get rid of the salt, otherwise others will need to know it
+    //Generate random salt and secret for account deploymnet
     salt = Fr.random();
     secret = Fr.random();
-    // Generate keys for the contract
+
+    //Generate public and private keys for the account contract
     const { signingPrivateKey, x, y } = await generatePublicKeys();
     accountPrivateKey = signingPrivateKey;
 
-    // Create AccountGroupContract with the signing private key
+    //Create an instance of the AccountGroupContractClass with the signing private key and admin address
     accountContractPXE1 = new AccountGroupContractClass(
       signingPrivateKey,
       admin
     );
 
-    // Initialize AccountGroupManager with the admin address
+    // Initialize AccountGroupManager with the contract.
+    // The admin is there as a way to distriguish the different group instances.
     const accountManagerPXE1 = new AccountGroupManager(
       pxe1,
       secret,
@@ -103,34 +124,34 @@ describe("AccountGroup Contract Deployment", () => {
       salt
     );
 
+    //Register the account contract in PXE1
     await accountManagerPXE1.register();
 
-    // Deployment options
+    // Deployment options for the account
     const deployOptions: DeployAccountOptions = {
       skipClassRegistration: false,
       skipPublicDeployment: false,
     };
 
+    //Deploy the account and get the wallet instance
     const deployTx = accountManagerPXE1.deploy(deployOptions);
     const walletPXE1 = await deployTx.getWallet();
     contractAccountPXE1 = walletPXE1;
     contractAddressPXE1 = walletPXE1.getAddress();
 
+    //this is not used, just a check
     partialAddress = walletPXE1.getCompleteAddress().partialAddress;
     console.log("partialAddress", partialAddress.toString());
 
-    console.log(
-      "Account Group Contract deployed with address:",
-      walletPXE1.getCompleteAddress()
-    );
     expect(walletPXE1.getCompleteAddress()).toBeDefined();
 
+    //Delay to ensure sychronization
     await delay(2000);
   });
 
   it("Registers the AccountGroupContract in Alice's PXE", async () => {
-    // Initialize Alice’s AccountGroupManager with admin’s contract details and same salt
-    //this should just be registering the same contract again
+    //This initializes the Account Contract in the Second PXE instance, using the same secret and salt
+    //These are the two secrets that need to be known to register the contract in a new PXE instance
     const aliceManagerPXE2 = new AccountGroupManager(
       pxe2,
       secret,
@@ -145,25 +166,20 @@ describe("AccountGroup Contract Deployment", () => {
     contractAccountPXE2 = walletPXE2;
     contractAddressPXE2 = walletPXE2.getAddress();
 
-    console.log(
-      "alicePXEAccountContract",
-      walletPXE2.getCompleteAddress().toString()
-    );
-
-    console.log(
-      "Alice registered the contract with address:",
-      walletPXE2.getCompleteAddress().toString()
-    );
+    //Ensure the contract addresses match across the PXE instances
     expect(walletPXE2.getCompleteAddress().address.toString()).toBe(
       contractAddressPXE1.toString()
     );
-    // expect(walletPXE2.getCompleteAddress().toString()).toBeDefined();
+    expect(walletPXE2.getCompleteAddress().toString()).toBeDefined();
+
+    //Getting the block number for tracking purposes
     const blockNumber = await pxe1.getBlockNumber();
     console.log("blockNumber", blockNumber);
     await delay(2000);
   });
 
   it("Registers the AccountGroupContract in Bob's PXE", async () => {
+    //Initialize the Account Contract for Bob in PXE3
     const bobManagerPXE3 = new AccountGroupManager(
       pxe3,
       secret,
@@ -171,10 +187,14 @@ describe("AccountGroup Contract Deployment", () => {
       admin,
       salt
     );
+
+    //Register the contract wallet in Bob's PXE
     await bobManagerPXE3.register();
     const walletPXE3 = await bobManagerPXE3.getWallet();
     contractAccountPXE3 = walletPXE3;
     contractAddressPXE3 = walletPXE3.getAddress();
+
+    //Ensure the contract addresses match across the PXE instances
     expect(walletPXE3.getCompleteAddress().address.toString()).toBe(
       contractAddressPXE1.toString()
     );
@@ -183,9 +203,12 @@ describe("AccountGroup Contract Deployment", () => {
   //-----------------------------------Fetching notes from PXEs -----------------------------------
 
   it("Fetches same notes in all PXEs", async () => {
+    //Listening to events to ensure synchronization
     const notesPXE1 = await eventListener(pxe1, "pxe1", contractAddressPXE1);
     const notesPXE2 = await eventListener(pxe2, "pxe2", contractAddressPXE2);
     const notesPXE3 = await eventListener(pxe3, "pxe3", contractAddressPXE3);
+
+    //Expect the notes are the same across all PXEs
     expect(notesPXE1).toEqual(notesPXE2);
     expect(notesPXE1).toEqual(notesPXE3);
   });
@@ -193,19 +216,25 @@ describe("AccountGroup Contract Deployment", () => {
   //-----------------------------------Getting the admin address from storage -----------------------------------
 
   it("Gets the admin address from storage PXE1", async () => {
+    //Wait for syncronization
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
     const blockNumber = await pxe1.getBlockNumber();
     console.log("blockNumber", blockNumber);
+
+    //Create an instance of the contract in PXE1
+    //Using the account contracts associated wallet to call methods on the contract
     contractInstancePXE1 = await AccountGroupContract.at(
       contractAddressPXE1,
       contractAccountPXE1
     );
-    console.log("instance PXE1 created, fetching note");
+
+    //Get the admin address from the contract storage
     const getAdminPXE1 = await contractInstancePXE1.methods
       .get_admin()
       .simulate();
-    console.log("getAdminPXE1", getAdminPXE1.toString());
+
     expect(getAdminPXE1.toString()).toBe(admin.toString());
+
     const blockNumber2 = await pxe1.getBlockNumber();
     console.log("blockNumber2", blockNumber2);
     await delay(2000);
@@ -213,11 +242,11 @@ describe("AccountGroup Contract Deployment", () => {
 
   it("Gets the admin address from storage PXE2", async () => {
     await eventListener(pxe2, "pxe2", contractAddressPXE2);
-    console.log("note PXE2 before get admin");
 
     const blockNumberPXE2 = await pxe2.getBlockNumber();
     console.log("blockNumberPXE2", blockNumberPXE2);
 
+    //Create an instance of the contract in PXE2
     contractInstancePXE2 = await AccountGroupContract.at(
       contractAddressPXE2,
       contractAccountPXE2
@@ -235,7 +264,6 @@ describe("AccountGroup Contract Deployment", () => {
 
   it("Gets the admin address from storage PXE3", async () => {
     await eventListener(pxe3, "pxe3", contractAddressPXE3);
-    console.log("note PXE3 before get admin");
 
     const blockNumberPXE3 = await pxe3.getBlockNumber();
     console.log("blockNumberPXE3", blockNumberPXE3);
@@ -254,54 +282,60 @@ describe("AccountGroup Contract Deployment", () => {
 
   //-----------------------------------Adding a member to the group -----------------------------------
   it("Views admin as group member PXE1", async () => {
+    //View the first member of the group (should be the admin)
     const viewMember1PXE1 = await contractInstancePXE1.methods
       .view_member(0)
       .simulate();
-    console.log("viewMember1PXE1", viewMember1PXE1);
+
     expect(viewMember1PXE1.toString()).toBe(admin.toString());
   });
+
   it("Adds a member to the group PXE1", async () => {
+    //Listening to events to ensure synchronization
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
+
+    //Add Alice to the group
     const addMemberPXE1 = await contractInstancePXE1.methods
       .add_member(aliceAddress)
       .send()
       .wait();
     console.log("addMemberPXE1", addMemberPXE1);
+
+    //View the second member of the group (should be Alice)
     const viewMember1PXE1 = await contractInstancePXE1.methods
       .view_member(1)
       .simulate();
-    console.log("viewMember1PXE1", viewMember1PXE1);
     expect(viewMember1PXE1.toString()).toBe(aliceAddress.toString());
   });
+
   it("Adds a member to the group PXE2", async () => {
-    const addMemberPXE2 = await contractInstancePXE2.methods
-      .add_member(bobAddress)
-      .send()
-      .wait();
-    console.log("addMemberPXE2", addMemberPXE2);
+    //Add Bob to the group
+    await contractInstancePXE2.methods.add_member(bobAddress).send().wait();
+
     const viewMember1PXE2 = await contractInstancePXE2.methods
       .view_member(2)
       .simulate();
     console.log("viewMember1PXE2", viewMember1PXE2);
     expect(viewMember1PXE2.toString()).toBe(bobAddress.toString());
   });
+
   //-----------------------------------Setting the balance and making a payment -----------------------------------
 
   it("it sets balance and makes payment between two accounts PXE1", async () => {
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
 
+    //Set the balance between the admin and Alice
     const set_balance = await contractInstancePXE1.methods
       .set_balance(admin, aliceAddress, 100)
       .send()
       .wait();
-    console.log("set_balance", set_balance);
 
     await delay(2000);
 
     const balance = await contractInstancePXE1.methods
       .get_balance(admin, aliceAddress)
       .simulate();
-    console.log("balance", balance);
+
     expect(balance).toBe(100n);
 
     const blockNumber = await pxe1.getBlockNumber();
@@ -329,6 +363,8 @@ describe("AccountGroup Contract Deployment", () => {
   });
 
   it("should fail setting balance with admin and charlie", async () => {
+    //Expect an error when trying to set the balance with the admin and Charlie
+    //Charlie is not a member of the group
     await expect(
       contractInstancePXE1.methods
         .set_balance(admin, charlieAddress, 100)
@@ -336,6 +372,7 @@ describe("AccountGroup Contract Deployment", () => {
         .wait()
     ).rejects.toThrow("Debtor is not in the group");
   });
+
   it("fetches the balance between two accounts PXE1", async () => {
     let balance;
     balance = await retryWithDelay(async () => {

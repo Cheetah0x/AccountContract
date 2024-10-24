@@ -1,4 +1,13 @@
-//here we are going to test the deployment of the contract and the initialization of the signing public key
+//This is for the Setup of Testing the contract using the TXE.
+//Currently it is not possible to test custom account contracts using the TXE.
+//However, there is a plan to incorporate this in the future. 
+//This will be updated when this is possible.
+
+//If a developer wants to explore this they will have to alter the txeservice file in the Aztec packages.
+//path for this is aztec/packages/yarn-project/txe/src/txe_service/txe_service.ts
+//the functiont that will need changed is the addAccount function.
+//currently it is hardcoded to use the ScnorrAccountContractArtifact, this will need to be changed to your account contracts artifact. 
+
 
 use dep::aztec::{
 
@@ -13,9 +22,6 @@ use dep::protocol_types::{
     abis::function_selector::FunctionSelector, address::AztecAddress,
     constants::CONTRACT_INSTANCE_LENGTH, contract_instance::ContractInstance
 };
-
-//this just does not work, will try using jest. 
-//got it deploying in jest, no idea how to do the same thing in the TXE, for deploy u need a wallet to depoly, cannot do that here
 
 unconstrained pub fn setup() -> (&mut TestEnvironment, AztecAddress, AztecAddress) {
     let mut env = TestEnvironment::new();
