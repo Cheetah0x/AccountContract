@@ -18,10 +18,10 @@
     "dev": "webpack serve --mode development --config webpack.config.mjs"
   },
   "dependencies": {
-    "@aztec/accounts": "0.59.0",
-    "@aztec/aztec.js": "0.59.0",
-    "@aztec/builder": "0.59.0",
-    "@aztec/noir-contracts.js": "0.59.0",
+    "@aztec/accounts": "0.60.0",
+    "@aztec/aztec.js": "0.60.0",
+    "@aztec/builder": "0.60.0",
+    "@aztec/noir-contracts.js": "0.60.0",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-select": "^2.1.2",

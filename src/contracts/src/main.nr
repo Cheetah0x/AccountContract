@@ -26,6 +26,8 @@ contract AccountGroup {
     use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
     use dep::aztec::macros::{storage::storage, functions::{private, initializer, view, noinitcheck}};
     use value_note::{balance_utils, utils::{increment, decrement}, value_note::ValueNote};
+    // use crate::notes::CustomDecrement::{increment, decrement};
+    // use value_note::{balance_utils, value_note::ValueNote};
     use std::hash::poseidon2;
     use std::hash::pedersen_hash;
     use aztec::note::note_getter::NoteGetterOptions;
@@ -174,8 +176,8 @@ contract AccountGroup {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
 
-        //Check that teh creditor and debtors are members of the group
-        //This is not an optimal approach, better methods will need to be explored in the future. 
+        // Check that teh creditor and debtors are members of the group
+        // This is not an optimal approach, better methods will need to be explored in the future. 
         let mut creditor_in_group = false;
         let mut debtor1_in_group = false;
         let mut debtor2_in_group = false;
