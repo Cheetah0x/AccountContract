@@ -3,6 +3,7 @@ use dep::aztec::note::note_getter_options::SortOrder;
 use dep::aztec::encrypted_logs::encrypted_note_emission::{encode_and_encrypt_note, encode_and_encrypt_note_unconstrained} ;
 use dep::aztec::keys::getters::get_public_keys;
 use dep::value_note::{filter::filter_notes_min_sum, value_note::{ValueNote, VALUE_NOTE_LEN}};
+use crate::notes::NewAddressNote::NewAddressNote;
 
 // Sort the note values (0th field) in descending order.
 // Pick the fewest notes whose sum is equal to or greater than `amount`.
@@ -82,4 +83,31 @@ pub fn decrement_by_at_most(
     increment(balance, change_value, owner, outgoing_viewer);
 
     decremented
+}
+
+
+pub fn membership_check(creditor: AztecAddress, debtor: AztecAddress, contract_address: AztecAddress, location: PrivateSet<NewAddressNote, &mut PrivateContext>) -> bool {
+    let mut creditor_in_group = false;
+    let mut debtor_in_group = false;
+    let contract_address_keys = get_public_keys(contract_address);
+    let options = NoteGetterOptions::new();
+    let members_notes: BoundedVec<NewAddressNote, 16> = location.get_notes(options);
+    for i in 0..members_notes.max_len() {
+        if i < members_notes.len() {
+            let note = members_notes.get_unchecked(i);
+            if note.address == creditor {
+                creditor_in_group = true;
+            }
+            if note.address == debtor {
+                debtor_in_group = true;
+            }
+        }
+    }
+    assert(creditor_in_group, "Creditor is not in the group");
+    assert(debtor_in_group, "Debtor is not in the group");
+    true
+}
+
+pub fn membership_check_multiple(creditor: AztecAddress, debtors: [AztecAddress; 2], contract_address: AztecAddress, location: PrivateSet<NewAddressNote, &mut PrivateContext>) -> bool {
+    membership_check(creditor, debtors[0], contract_address, location) & membership_check(creditor, debtors[1], contract_address, location)
 }

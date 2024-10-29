@@ -70,7 +70,7 @@ export class AccountGroupContract extends ContractBase {
     admin: AztecAddressLike
   ) {
     return new DeployMethod<AccountGroupContract>(
-      PublicKeys.empty(),
+      PublicKeys.default(),
       wallet,
       AccountGroupContractArtifact,
       AccountGroupContract.at,
@@ -105,7 +105,7 @@ export class AccountGroupContract extends ContractBase {
     ...args: Parameters<AccountGroupContract["methods"][M]>
   ) {
     return new DeployMethod<AccountGroupContract>(
-      opts.publicKeys ?? PublicKeys.empty(),
+      opts.publicKeys ?? PublicKeys.default(),
       opts.wallet,
       AccountGroupContractArtifact,
       AccountGroupContract.at,
