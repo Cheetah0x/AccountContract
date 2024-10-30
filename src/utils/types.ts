@@ -63,34 +63,34 @@ export interface PXEWithUrl {
 
 /**
  * A class extending the DefaultAccountContract to create a contract that supports group
- * functionality. The contract includes a signing private key and an admin address.
- * The admin address is there to have a way to identify the group.
+ * functionality. The contract includes a signing private key and an owner address.
+ * The owner address is there to have a way to identify the group.
  */
 export class AccountGroupContractClass extends DefaultAccountContract {
   private signingPrivateKey: GrumpkinScalar;
-  private adminAddress: AztecAddress;
+  private ownerAddress: AztecAddress;
 
   /**
    * Constructs a new instance of the AccountGroupContractClass.
    * @param signingPrivateKey - The Grumpkin scalar private key used for signing.
-   * @param adminAddress - The AztecAddress of the contract administrator.
+   * @param ownerAddress - The AztecAddress of the contract owner.
    */
-  constructor(signingPrivateKey: GrumpkinScalar, adminAddress: AztecAddress) {
+  constructor(signingPrivateKey: GrumpkinScalar, ownerAddress: AztecAddress) {
     super(AccountGroupContractArtifact); // Use the AccountGroup contract artifact.
     this.signingPrivateKey = signingPrivateKey;
-    this.adminAddress = adminAddress;
+    this.ownerAddress = ownerAddress;
   }
 
   /**
    * Returns the deployment arguments for the contract.
-   * This includes the Schnorr signature public key (x, y) and the admin address.
-   * @returns {Array} An array containing the public key components and admin address.
+   * This includes the Schnorr signature public key (x, y) and the owner address.
+   * @returns {Array} An array containing the public key components and owner address.
    */
   getDeploymentArgs() {
     const signingPublicKey = new Schnorr().computePublicKey(
       this.signingPrivateKey
     );
-    return [signingPublicKey.x, signingPublicKey.y, this.adminAddress];
+    return [signingPublicKey.x, signingPublicKey.y, this.ownerAddress];
   }
 
   /**
@@ -134,27 +134,27 @@ class SchnorrAuthWitnessProvider {
 
 /**
  * A class extending AccountManager to manage group accounts.
- * This manager adds an admin address to the account deployment process.
+ * This manager adds an owner address to the account deployment process.
  */
 export class AccountGroupManager extends AccountManager {
-  private admin: AztecAddress;
+  private owner: AztecAddress;
 
   /**
    * Constructs a new instance of AccountGroupManager.
    * @param pxe - The PXE instance for managing contract execution.
    * @param secretKey - The Fr object representing the secret key of the account.
    * @param accountGroupContract - An instance of the AccountGroupContractClass used for account deployment.
-   * @param admin - The admin AztecAddress for the group account.
+   * @param owner - The owner AztecAddress for the group account.
    * @param salt - Optional salt value for the account (default is undefined).
    */
   constructor(
     pxe: PXE,
     secretKey: Fr,
     accountGroupContract: AccountGroupContractClass,
-    admin: AztecAddress,
+    owner: AztecAddress,
     salt?: Salt
   ) {
     super(pxe, secretKey, accountGroupContract, salt); // Call the parent class constructor.
-    this.admin = admin;
+    this.owner = owner;
   }
 }

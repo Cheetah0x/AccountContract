@@ -10,7 +10,7 @@ import { AccountGroupContract } from '@/contracts/src/artifacts/AccountGroup';
  * This hook manages the state of the account contract, including its deployment and interaction.
 
  * @param pxe - The PXE (Private Execution Environment) instance, required to interact with the Aztec network.
- * @param adminWallet - The admin's wallet, an instance of AccountWalletWithSecretKey, used to manage the contract.
+ * @param ownerWallet - The owner's wallet, an instance of AccountWalletWithSecretKey, used to manage the contract.
  * @param secret - A `Fr` secret scalar value used during contract registration.
  * @param accountPrivateKey - The private key `Fq` of the account, used to sign and manage the account contract.
  * @param salt - A `Fr` value used as salt during contract deployment.
@@ -27,7 +27,7 @@ import { AccountGroupContract } from '@/contracts/src/artifacts/AccountGroup';
 
 export function useAccountContract(
   pxe: PXE | null,
-  adminWallet: AccountWalletWithSecretKey | null,
+  ownerWallet: AccountWalletWithSecretKey | null,
   secret: Fr | null,
   accountPrivateKey: Fq | null,
   salt: Fr | null
@@ -39,11 +39,11 @@ export function useAccountContract(
 
   /**
    * Registers and deploys the AccountGroupContract on the PXE.
-   * This function retrieves the admin address from the wallet, creates the contract instance,
+   * This function retrieves the owner  address from the wallet, creates the contract instance,
    * and then deploys the contract, storing its wallet and address for future use.
    */
   const registerContract = async () => {
-    if (!pxe || !adminWallet || !secret || !accountPrivateKey || !salt) {
+    if (!pxe || !ownerWallet || !secret || !accountPrivateKey || !salt) {
       // Not all dependencies are ready, wait
       console.log("Waiting for all dependencies to be ready in useAccountContract");
       return;
@@ -52,23 +52,23 @@ export function useAccountContract(
     setWait(true); 
 
     try {
-      // Step 1: Get the admin address from the adminWallet.
-      const adminAddress = await adminWallet.getAddress();
-      console.log("Admin Address", adminAddress);
+      // Step 1: Get the owner address from the ownerWallet.
+      const ownerAddress = await ownerWallet.getAddress();
+      console.log("Owner Address", ownerAddress);
 
-      // Step 2: Create AccountGroupContract instance using the account private key and admin address.
+      // Step 2: Create AccountGroupContract instance using the account private key and owner address.
       const accountContract = new AccountGroupContractClass(
         accountPrivateKey,
-        adminAddress
+        ownerAddress
       );
       console.log("Account Contract", accountContract);
 
-      // Step 3: Initialize the AccountGroupManager with the admin address, secret, and salt.
+      // Step 3: Initialize the AccountGroupManager with the owner address, secret, and salt.
       const accountGroupManager = new AccountGroupManager(
         pxe,
         secret,
         accountContract,
-        adminAddress,
+        ownerAddress,
         salt
       );
       await accountGroupManager.register();

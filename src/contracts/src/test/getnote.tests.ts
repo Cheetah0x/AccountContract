@@ -34,11 +34,11 @@ describe("AccountGroup Contract Deployment", () => {
   let pxe3: PXE;
   let logger: DebugLogger;
   let contractAddressPXE1: AztecAddress;
-  let adminAccount: AccountWallet;
+  let ownerAccount: AccountWallet;
   let aliceWallet: Wallet;
   let bobWallet: Wallet;
   let charlieWallet: Wallet;
-  let admin: AztecAddress;
+  let owner: AztecAddress;
   let aliceAddress: AztecAddress;
   let bobAddress: AztecAddress;
   let charlieAddress: AztecAddress;
@@ -62,10 +62,10 @@ describe("AccountGroup Contract Deployment", () => {
     pxe2 = await setupSandbox(PXE_URL2);
     pxe3 = await setupSandbox(PXE_URL3);
 
-    adminAccount = await createSchnorrAccount(pxe1);
-    console.log("admin", adminAccount);
-    admin = adminAccount.getAddress();
-    console.log("adminAddress", admin);
+    ownerAccount = await createSchnorrAccount(pxe1);
+    console.log("owner", ownerAccount);
+    owner = ownerAccount.getAddress();
+    console.log("ownerAddress", owner);
 
     charlieWallet = await createSchnorrAccount(pxe1);
     charlieAddress = charlieWallet.getAddress();
@@ -91,15 +91,15 @@ describe("AccountGroup Contract Deployment", () => {
     // Create AccountGroupContract with the signing private key
     accountContractPXE1 = new AccountGroupContractClass(
       signingPrivateKey,
-      admin
+      owner
     );
 
-    // Initialize AccountGroupManager with the admin address
+    // Initialize AccountGroupManager with the owner address
     const accountManagerPXE1 = new AccountGroupManager(
       pxe1,
       secret,
       accountContractPXE1,
-      admin,
+      owner,
       salt
     );
 
@@ -135,7 +135,7 @@ describe("AccountGroup Contract Deployment", () => {
       contractAccountPXE1
     );
     const addMemberPXE1 = await contractInstancePXE1.methods
-      .add_member(admin)
+      .add_member(owner)
       .send()
       .wait();
     console.log("addMemberPXE1", addMemberPXE1);
@@ -144,10 +144,10 @@ describe("AccountGroup Contract Deployment", () => {
       .view_member(1)
       .simulate();
     console.log("viewMember1PXE1", viewMember1PXE1);
-    expect(viewMember1PXE1.toString()).toBe(admin.toString());
+    expect(viewMember1PXE1.toString()).toBe(owner.toString());
   });
 
-  it("Gets the admin note for alice", async () => {
+  it("Gets the owner note for alice", async () => {
     const filter = {
       owner: aliceAddress,
     };

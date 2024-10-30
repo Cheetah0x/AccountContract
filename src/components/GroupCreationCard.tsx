@@ -51,7 +51,7 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
   createGroup,
   PXEInstances,
 }) => {
-  // Start with PXEIndex as 1 since 0 is for the admin when deploying the contract
+  // Start with PXEIndex as 1 since 0 is for Owner when deploying the contract
   const [selectedPXEIndex, setSelectedPXEIndex] = useState(1);
   console.log("PXE Instances: ", PXEInstances.length);
 
@@ -85,7 +85,7 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
               </SelectTrigger>
               <SelectContent>
                 {PXEInstances.map((instance, index) => {
-                    // Skip the admin instance (index 0) and show the others
+                    // Skip the owner instance (index 0) and show the others
                     if (index === 0) return null;
 
                     return (
@@ -115,7 +115,7 @@ export const GroupCreationCard: React.FC<GroupCreationCardProps> = ({
                   className="flex items-center bg-muted text-muted-foreground rounded-full px-3 py-1 text-sm"
                 >
                   {member}
-                  {member !== "Admin" && (
+                  {member !== "Owner" && (
                     <button
                       onClick={() => removeMember(member)}
                       className="ml-2 text-muted-foreground hover:text-foreground"

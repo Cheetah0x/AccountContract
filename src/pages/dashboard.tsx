@@ -30,38 +30,38 @@ export default function Dashboard() {
   const [newMember, setNewMember] = useState("");
   const [membersData, setMembersData] = useState<ReturnType<typeof useAddMembers> | null>(null);
 
-  //The admin is always the first PXE Instance, created by default when making the group
-  const adminPXE = PXEInstances[0].pxe;
+  //The owner is always the first PXE Instance, created by default when making the group
+  const ownerPXE = PXEInstances[0].pxe;
 
    //Contract Deployment
    const { accountPrivateKey, secret, salt } = useAccountSecrets();
 
-  //Account Creation of the Admin with the first PXE Instance
-  const { adminWallet, createNewWallet, wait: accountWait } = useAccountCreation(adminPXE);
+  //Account Creation of the Owner with the first PXE Instance
+  const { ownerWallet, createNewWallet, wait: accountWait } = useAccountCreation(ownerPXE);
 
-  // Initialize admin wallet when secrets are ready
+  // Initialize owner wallet when secrets are ready
   useEffect(() => {
     const setup = async () => {
 
-      //If all secrets are ready but the admin wallet is not created, create it
-      if (accountPrivateKey && secret && salt && !adminWallet) {
+      //If all secrets are ready but the owner wallet is not created, create it
+      if (accountPrivateKey && secret && salt && !ownerWallet) {
         await createNewWallet();
-        console.log("Admin Wallet Created");
+        console.log("Owner Wallet Created");
       }
 
-      //Once the admin wallet is ready, register the account contract
-      if (adminWallet) {
+      //Once the owner wallet is ready, register the account contract
+      if (ownerWallet) {
         await registerContract();
         console.log("Contract Registered");
       }
 
       //If all components are ready, initialize the group and members
-      if (secret && groupContract && groupContractWallet && adminWallet) {
+      if (secret && groupContract && groupContractWallet && ownerWallet) {
               const newMembersData = useAddMembers(
                 secret,
                 groupContract,
                 groupContractWallet,
-                adminWallet,
+                ownerWallet,
                 PXEInstances,
                 salt!
           );
@@ -70,12 +70,12 @@ export default function Dashboard() {
         }
     };
     setup();
-  }, [accountPrivateKey, secret, salt, adminWallet]);
+  }, [accountPrivateKey, secret, salt, ownerWallet]);
 
  //Set up the account contract registration and group creation
   const { registerContract, groupContract, groupContractWallet, groupContractAddress, wait: contractWait } = useAccountContract(
-    adminPXE,
-    adminWallet!,
+    ownerPXE,
+    ownerWallet!,
     secret!,
     accountPrivateKey!,
     salt!
@@ -94,7 +94,7 @@ export default function Dashboard() {
     secret!, 
     groupContract!, 
     groupContractWallet!, 
-    adminWallet!,
+    ownerWallet!,
     PXEInstances,
     salt!,
   );

@@ -16,7 +16,7 @@ import { SingleKeyAccountContract } from "@aztec/accounts/single_key";
  * @param pxe - The PXE instance required to interact with the Aztec network for account creation.
  *
  * @returns {Object} An object containing:
- * - `adminWallet`: The newly created wallet instance (`AccountWalletWithSecretKey`) or `null` if not created yet.
+ * - `ownerWallet`: The newly created wallet instance (`AccountWalletWithSecretKey`) or `null` if not created yet.
  * - `createNewWallet`: A function to generate a new account wallet and register it on the PXE.
  * - `wait`: A boolean
  *
@@ -24,7 +24,7 @@ import { SingleKeyAccountContract } from "@aztec/accounts/single_key";
  */
 
 export const useAccountCreation = (pxe: PXE) => {
-  const [adminWallet, setAccountWallet] =
+  const [ownerWallet, setAccountWallet] =
     useState<AccountWalletWithSecretKey | null>(null); // State to store the created wallet.
   const [wait, setWait] = useState(false); // State to manage loading state during wallet creation.
 
@@ -68,5 +68,5 @@ export const useAccountCreation = (pxe: PXE) => {
   };
 
   // Return the relevant wallet information and the function to create a new wallet.
-  return { adminWallet, createNewWallet, wait };
+  return { ownerWallet, createNewWallet, wait };
 };

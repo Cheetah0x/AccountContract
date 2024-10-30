@@ -27,8 +27,9 @@
   },
   "include": [
     "src/**/*.ts*",
-    "tests/**/*.ts",
+    "test/**/*.ts",
     "src/contracts/target/*.json",
-    "artifacts/**/*.ts"
+    "artifacts/**/*.ts",
+    "src/contracts/src/test/**/*.ts"
   ]
 }

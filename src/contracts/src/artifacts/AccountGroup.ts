@@ -67,7 +67,7 @@ export class AccountGroupContract extends ContractBase {
     wallet: Wallet,
     signing_pub_key_x: FieldLike,
     signing_pub_key_y: FieldLike,
-    admin: AztecAddressLike
+    owner: AztecAddressLike
   ) {
     return new DeployMethod<AccountGroupContract>(
       PublicKeys.default(),
@@ -86,7 +86,7 @@ export class AccountGroupContract extends ContractBase {
     wallet: Wallet,
     signing_pub_key_x: FieldLike,
     signing_pub_key_y: FieldLike,
-    admin: AztecAddressLike
+    owner: AztecAddressLike
   ) {
     return new DeployMethod<AccountGroupContract>(
       publicKeys,
@@ -122,61 +122,37 @@ export class AccountGroupContract extends ContractBase {
   }
 
   public static get storage(): ContractStorageLayout<
-    "signing_public_key" | "admin" | "group_members" | "member_balances"
+    "signing_public_key" | "group_members" | "member_balances"
   > {
     return {
       signing_public_key: {
         slot: new Fr(1n),
       },
-      admin: {
+      group_members: {
         slot: new Fr(2n),
       },
-      group_members: {
+      member_balances: {
         slot: new Fr(3n),
       },
-      member_balances: {
-        slot: new Fr(4n),
-      },
     } as ContractStorageLayout<
-      "signing_public_key" | "admin" | "group_members" | "member_balances"
+      "signing_public_key" | "group_members" | "member_balances"
     >;
   }
 
   public static get notes(): ContractNotes<
-    | "ValueNote"
-    | "TokenNote"
-    | "AddressNote"
-    | "TransparentNote"
-    | "PublicKeyNote"
-    | "NewAddressNote"
+    "PublicKeyNote" | "NewAddressNote" | "ValueNote"
   > {
     return {
-      ValueNote: {
-        id: new NoteSelector(1038582377),
-      },
-      TokenNote: {
-        id: new NoteSelector(2350566847),
-      },
-      AddressNote: {
-        id: new NoteSelector(2232136525),
-      },
-      TransparentNote: {
-        id: new NoteSelector(3193649735),
-      },
       PublicKeyNote: {
         id: new NoteSelector(2806681024),
       },
       NewAddressNote: {
         id: new NoteSelector(4235158996),
       },
-    } as ContractNotes<
-      | "ValueNote"
-      | "TokenNote"
-      | "AddressNote"
-      | "TransparentNote"
-      | "PublicKeyNote"
-      | "NewAddressNote"
-    >;
+      ValueNote: {
+        id: new NoteSelector(1038582377),
+      },
+    } as ContractNotes<"PublicKeyNote" | "NewAddressNote" | "ValueNote">;
   }
 
   /** Type-safe wrappers for the public methods exposed by the contract. */
@@ -196,11 +172,11 @@ export class AccountGroupContract extends ContractBase {
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
-    /** constructor(signing_pub_key_x: field, signing_pub_key_y: field, admin: struct) */
+    /** constructor(signing_pub_key_x: field, signing_pub_key_y: field, owner: struct) */
     constructor: ((
       signing_pub_key_x: FieldLike,
       signing_pub_key_y: FieldLike,
-      admin: AztecAddressLike
+      owner: AztecAddressLike
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
@@ -229,10 +205,6 @@ export class AccountGroupContract extends ContractBase {
       },
       cancellable: boolean
     ) => ContractFunctionInteraction) &
-      Pick<ContractMethod, "selector">;
-
-    /** get_admin() */
-    get_admin: (() => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
     /** get_balance(creditor: struct, debtor: struct) */

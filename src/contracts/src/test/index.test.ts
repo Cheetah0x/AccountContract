@@ -16,11 +16,13 @@ import {
 } from "../artifacts/AccountGroup.js";
 import { AccountGroupManager, AccountGroupContractClass } from "./testtypes.js";
 import {
+  eventListener,
+  delay,
+  retryWithDelay,
   createSchnorrAccount,
   generatePublicKeys,
   setupSandbox,
-} from "./utils.js";
-import { eventListener, delay, retryWithDelay } from "./utils.js";
+} from "./utils";
 
 const { PXE_URL1 = "http://localhost:8080" } = process.env;
 const { PXE_URL2 = "http://localhost:8081" } = process.env;
@@ -37,14 +39,14 @@ describe("AccountGroup Contract Deployment", () => {
   let logger: DebugLogger;
 
   //Wallets
-  let adminAccount: AccountWallet;
+  let ownerAccount: AccountWallet;
   let aliceWallet: Wallet;
   let bobWallet: Wallet;
   let charlieWallet: Wallet;
 
   //Addresses
   let contractAddressPXE1: AztecAddress;
-  let admin: AztecAddress;
+  let owner: AztecAddress;
   let aliceAddress: AztecAddress;
   let bobAddress: AztecAddress;
   let charlieAddress: AztecAddress;
@@ -80,9 +82,9 @@ describe("AccountGroup Contract Deployment", () => {
     pxe2 = await setupSandbox(PXE_URL2);
     pxe3 = await setupSandbox(PXE_URL3);
 
-    //Creating the admin account on PXE1
-    adminAccount = await createSchnorrAccount(pxe1);
-    admin = adminAccount.getAddress();
+    //Creating the owner account on PXE1
+    ownerAccount = await createSchnorrAccount(pxe1);
+    owner = ownerAccount.getAddress();
 
     //Creating Alice's account on PXE2
     aliceWallet = await createSchnorrAccount(pxe2);
@@ -108,19 +110,19 @@ describe("AccountGroup Contract Deployment", () => {
     const { signingPrivateKey, x, y } = await generatePublicKeys();
     accountPrivateKey = signingPrivateKey;
 
-    //Create an instance of the AccountGroupContractClass with the signing private key and admin address
+    //Create an instance of the AccountGroupContractClass with the signing private key and owner address
     accountContractPXE1 = new AccountGroupContractClass(
       signingPrivateKey,
-      admin
+      owner
     );
 
     // Initialize AccountGroupManager with the contract.
-    // The admin is there as a way to distriguish the different group instances.
+    // The owner is there as a way to distriguish the different group instances.
     const accountManagerPXE1 = new AccountGroupManager(
       pxe1,
       secret,
       accountContractPXE1,
-      admin,
+      owner,
       salt
     );
 
@@ -143,6 +145,13 @@ describe("AccountGroup Contract Deployment", () => {
     partialAddress = walletPXE1.getCompleteAddress().partialAddress;
     console.log("partialAddress", partialAddress.toString());
 
+    //Create an instance of the contract in PXE1
+    //Using the account contracts associated wallet to call methods on the contract
+    contractInstancePXE1 = await AccountGroupContract.at(
+      contractAddressPXE1,
+      contractAccountPXE1
+    );
+
     expect(walletPXE1.getCompleteAddress()).toBeDefined();
 
     //Delay to ensure sychronization
@@ -156,7 +165,7 @@ describe("AccountGroup Contract Deployment", () => {
       pxe2,
       secret,
       accountContractPXE1,
-      admin,
+      owner,
       salt
     );
 
@@ -172,6 +181,12 @@ describe("AccountGroup Contract Deployment", () => {
     );
     expect(walletPXE2.getCompleteAddress().toString()).toBeDefined();
 
+    //Create an instance of the contract in PXE2
+    contractInstancePXE2 = await AccountGroupContract.at(
+      contractAddressPXE2,
+      contractAccountPXE2
+    );
+
     //Getting the block number for tracking purposes
     const blockNumber = await pxe1.getBlockNumber();
     console.log("blockNumber", blockNumber);
@@ -184,7 +199,7 @@ describe("AccountGroup Contract Deployment", () => {
       pxe3,
       secret,
       accountContractPXE1,
-      admin,
+      owner,
       salt
     );
 
@@ -193,6 +208,11 @@ describe("AccountGroup Contract Deployment", () => {
     const walletPXE3 = await bobManagerPXE3.getWallet();
     contractAccountPXE3 = walletPXE3;
     contractAddressPXE3 = walletPXE3.getAddress();
+
+    contractInstancePXE3 = await AccountGroupContract.at(
+      contractAddressPXE3,
+      contractAccountPXE3
+    );
 
     //Ensure the contract addresses match across the PXE instances
     expect(walletPXE3.getCompleteAddress().address.toString()).toBe(
@@ -213,81 +233,14 @@ describe("AccountGroup Contract Deployment", () => {
     expect(notesPXE1).toEqual(notesPXE3);
   });
 
-  //-----------------------------------Getting the admin address from storage -----------------------------------
-
-  it("Gets the admin address from storage PXE1", async () => {
-    //Wait for syncronization
-    await eventListener(pxe1, "pxe1", contractAddressPXE1);
-    const blockNumber = await pxe1.getBlockNumber();
-    console.log("blockNumber", blockNumber);
-
-    //Create an instance of the contract in PXE1
-    //Using the account contracts associated wallet to call methods on the contract
-    contractInstancePXE1 = await AccountGroupContract.at(
-      contractAddressPXE1,
-      contractAccountPXE1
-    );
-
-    //Get the admin address from the contract storage
-    const getAdminPXE1 = await contractInstancePXE1.methods
-      .get_admin()
-      .simulate();
-
-    expect(getAdminPXE1.toString()).toBe(admin.toString());
-
-    const blockNumber2 = await pxe1.getBlockNumber();
-    console.log("blockNumber2", blockNumber2);
-    await delay(2000);
-  });
-
-  it("Gets the admin address from storage PXE2", async () => {
-    await eventListener(pxe2, "pxe2", contractAddressPXE2);
-
-    const blockNumberPXE2 = await pxe2.getBlockNumber();
-    console.log("blockNumberPXE2", blockNumberPXE2);
-
-    //Create an instance of the contract in PXE2
-    contractInstancePXE2 = await AccountGroupContract.at(
-      contractAddressPXE2,
-      contractAccountPXE2
-    );
-
-    // Retry with extended delay for get_admin
-    const getAdminPXE2 = await retryWithDelay(async () => {
-      console.log("Attempting get_admin on PXE2...");
-      return await contractInstancePXE2.methods.get_admin().simulate();
-    });
-
-    console.log("getAdminPXE2", getAdminPXE2.toString());
-    expect(getAdminPXE2.toString()).toBe(admin.toString());
-  });
-
-  it("Gets the admin address from storage PXE3", async () => {
-    await eventListener(pxe3, "pxe3", contractAddressPXE3);
-
-    const blockNumberPXE3 = await pxe3.getBlockNumber();
-    console.log("blockNumberPXE3", blockNumberPXE3);
-
-    contractInstancePXE3 = await AccountGroupContract.at(
-      contractAddressPXE3,
-      contractAccountPXE3
-    );
-
-    const getAdminPXE3 = await contractInstancePXE3.methods
-      .get_admin()
-      .simulate();
-
-    expect(getAdminPXE3.toString()).toBe(admin.toString());
-  });
-
   //-----------------------------------Adding a member to the group -----------------------------------
-  it("Views admin as group member PXE1", async () => {
-    //View the first member of the group (should be the admin)
+  it("Views owner as group member PXE1", async () => {
+    //View the first member of the group (should be the owner)
     const viewMember1PXE1 = await contractInstancePXE1.methods
       .view_member(0)
       .simulate();
 
-    expect(viewMember1PXE1.toString()).toBe(admin.toString());
+    expect(viewMember1PXE1.toString()).toBe(owner.toString());
   });
 
   it("Adds a member to the group PXE1", async () => {
@@ -324,16 +277,16 @@ describe("AccountGroup Contract Deployment", () => {
   it("it sets balance and makes payment between two accounts PXE1", async () => {
     await eventListener(pxe1, "pxe1", contractAddressPXE1);
 
-    //Set the balance between the admin and Alice
+    //Set the balance between the owner and Alice
     const set_balance = await contractInstancePXE1.methods
-      .set_balance(admin, aliceAddress, 100)
+      .set_balance(owner, aliceAddress, 100)
       .send()
       .wait();
 
     await delay(2000);
 
     const balance = await contractInstancePXE1.methods
-      .get_balance(admin, aliceAddress)
+      .get_balance(owner, aliceAddress)
       .simulate();
 
     expect(balance).toBe(100n);
@@ -343,7 +296,7 @@ describe("AccountGroup Contract Deployment", () => {
 
     const payment = await retryWithDelay(async () => {
       const result = await contractInstancePXE1.methods
-        .make_payment(aliceAddress, admin, 10)
+        .make_payment(aliceAddress, owner, 10)
         .send()
         .wait();
       return result;
@@ -362,12 +315,12 @@ describe("AccountGroup Contract Deployment", () => {
     expect(notesPXE1).toEqual(notesPXE3);
   });
 
-  it("should fail setting balance with admin and charlie", async () => {
-    //Expect an error when trying to set the balance with the admin and Charlie
+  it("should fail setting balance with owner and charlie", async () => {
+    //Expect an error when trying to set the balance with the owner and Charlie
     //Charlie is not a member of the group
     await expect(
       contractInstancePXE1.methods
-        .set_balance(admin, charlieAddress, 100)
+        .set_balance(owner, charlieAddress, 100)
         .send()
         .wait()
     ).rejects.toThrow("Debtor is not in the group");
@@ -377,7 +330,7 @@ describe("AccountGroup Contract Deployment", () => {
     let balance;
     balance = await retryWithDelay(async () => {
       const result = await contractInstancePXE1.methods
-        .get_balance(admin, aliceAddress)
+        .get_balance(owner, aliceAddress)
         .simulate();
       return result;
     });
@@ -399,7 +352,7 @@ describe("AccountGroup Contract Deployment", () => {
     // Retry the set_balance call with retryWithDelay
     await retryWithDelay(async () => {
       await contractInstancePXE2.methods
-        .set_balance(admin, aliceAddress, 30)
+        .set_balance(owner, aliceAddress, 30)
         .send()
         .wait();
     });
@@ -409,7 +362,7 @@ describe("AccountGroup Contract Deployment", () => {
     await delay(2000);
 
     const balance = await contractInstancePXE2.methods
-      .get_balance(admin, aliceAddress)
+      .get_balance(owner, aliceAddress)
       .simulate();
     console.log("balance", balance);
     expect(balance).toBe(120n);
@@ -421,7 +374,7 @@ describe("AccountGroup Contract Deployment", () => {
 
     await retryWithDelay(async () => {
       await contractInstancePXE3.methods
-        .set_balance(admin, aliceAddress, 50)
+        .set_balance(owner, aliceAddress, 50)
         .send()
         .wait();
     });
@@ -431,7 +384,7 @@ describe("AccountGroup Contract Deployment", () => {
     await delay(2000);
 
     const balance = await contractInstancePXE3.methods
-      .get_balance(admin, aliceAddress)
+      .get_balance(owner, aliceAddress)
       .simulate();
     console.log("balance", balance);
     expect(balance).toBe(170n);
@@ -442,7 +395,7 @@ describe("AccountGroup Contract Deployment", () => {
 
     const payment = await retryWithDelay(async () => {
       const result = await contractInstancePXE2.methods
-        .make_payment(aliceAddress, admin, 10)
+        .make_payment(aliceAddress, owner, 10)
         .send()
         .wait();
       return result;
@@ -450,7 +403,7 @@ describe("AccountGroup Contract Deployment", () => {
     console.log("payment", payment);
 
     const balance = await contractInstancePXE2.methods
-      .get_balance(admin, aliceAddress)
+      .get_balance(owner, aliceAddress)
       .simulate();
     console.log("balance", balance);
     expect(balance).toBe(160n);
@@ -461,7 +414,7 @@ describe("AccountGroup Contract Deployment", () => {
 
     const payment = await retryWithDelay(async () => {
       const result = await contractInstancePXE3.methods
-        .make_payment(aliceAddress, admin, 50)
+        .make_payment(aliceAddress, owner, 50)
         .send()
         .wait();
       return result;
@@ -469,7 +422,7 @@ describe("AccountGroup Contract Deployment", () => {
     console.log("payment", payment);
 
     const balance = await contractInstancePXE3.methods
-      .get_balance(admin, aliceAddress)
+      .get_balance(owner, aliceAddress)
       .simulate();
     console.log("balance", balance);
     expect(balance).toBe(110n);
@@ -554,90 +507,90 @@ describe("AccountGroup Contract Deployment", () => {
   //-----------------------------------Setting up group payments -----------------------------------
 
   it("Sets up group payments PXE1", async () => {
-    const current_balance_alice_admin = await contractInstancePXE1.methods
-      .get_balance(admin, aliceAddress)
+    const current_balance_alice_owner = await contractInstancePXE1.methods
+      .get_balance(owner, aliceAddress)
       .simulate();
-    console.log("current_balance_alice_admin", current_balance_alice_admin);
+    console.log("current_balance_alice_owner", current_balance_alice_owner);
 
-    const current_balance_bob_admin = await contractInstancePXE1.methods
-      .get_balance(admin, bobAddress)
+    const current_balance_bob_owner = await contractInstancePXE1.methods
+      .get_balance(owner, bobAddress)
       .simulate();
-    console.log("current_balance_bob_admin", current_balance_bob_admin);
+    console.log("current_balance_bob_owner", current_balance_bob_owner);
 
     const set_up_group_payments = await contractInstancePXE1.methods
-      .setup_group_payments(admin, [aliceAddress, bobAddress], 150)
+      .setup_group_payments(owner, [aliceAddress, bobAddress], 150)
       .send()
       .wait();
     console.log("set_up_group_payments", set_up_group_payments);
 
-    const balance_alice_admin = await contractInstancePXE1.methods
-      .get_balance(admin, aliceAddress)
+    const balance_alice_owner = await contractInstancePXE1.methods
+      .get_balance(owner, aliceAddress)
       .simulate();
-    console.log("balance_alice_admin", balance_alice_admin);
-    expect(balance_alice_admin).toBe(current_balance_alice_admin + 50n);
+    console.log("balance_alice_owner", balance_alice_owner);
+    expect(balance_alice_owner).toBe(current_balance_alice_owner + 50n);
 
-    const balance_bob_admin = await contractInstancePXE1.methods
-      .get_balance(admin, bobAddress)
+    const balance_bob_owner = await contractInstancePXE1.methods
+      .get_balance(owner, bobAddress)
       .simulate();
-    console.log("balance_bob_admin", balance_bob_admin);
-    expect(balance_bob_admin).toBe(current_balance_bob_admin + 50n);
+    console.log("balance_bob_owner", balance_bob_owner);
+    expect(balance_bob_owner).toBe(current_balance_bob_owner + 50n);
   });
 
   it("Sets up group payments PXE2", async () => {
-    const current_balance_alice_admin = await contractInstancePXE2.methods
-      .get_balance(admin, aliceAddress)
+    const current_balance_alice_owner = await contractInstancePXE2.methods
+      .get_balance(owner, aliceAddress)
       .simulate();
-    console.log("current_balance_alice_admin", current_balance_alice_admin);
+    console.log("current_balance_alice_owner", current_balance_alice_owner);
 
-    const current_balance_bob_admin = await contractInstancePXE2.methods
-      .get_balance(admin, bobAddress)
+    const current_balance_bob_owner = await contractInstancePXE2.methods
+      .get_balance(owner, bobAddress)
       .simulate();
-    console.log("current_balance_bob_admin", current_balance_bob_admin);
+    console.log("current_balance_bob_owner", current_balance_bob_owner);
 
     const set_up_group_payments = await contractInstancePXE2.methods
-      .setup_group_payments(admin, [aliceAddress, bobAddress], 150)
+      .setup_group_payments(owner, [aliceAddress, bobAddress], 150)
       .send()
       .wait();
     console.log("set_up_group_payments", set_up_group_payments);
 
-    const balance_alice_admin = await contractInstancePXE2.methods
-      .get_balance(admin, aliceAddress)
+    const balance_alice_owner = await contractInstancePXE2.methods
+      .get_balance(owner, aliceAddress)
       .simulate();
-    console.log("balance_alice_admin", balance_alice_admin);
-    expect(balance_alice_admin).toBe(current_balance_alice_admin + 50n);
+    console.log("balance_alice_owner", balance_alice_owner);
+    expect(balance_alice_owner).toBe(current_balance_alice_owner + 50n);
 
-    const balance_bob_admin = await contractInstancePXE2.methods
-      .get_balance(admin, bobAddress)
+    const balance_bob_owner = await contractInstancePXE2.methods
+      .get_balance(owner, bobAddress)
       .simulate();
-    expect(balance_bob_admin).toBe(current_balance_bob_admin + 50n);
+    expect(balance_bob_owner).toBe(current_balance_bob_owner + 50n);
   });
 
   it("Sets up group payments PXE3", async () => {
-    const current_balance_alice_admin = await contractInstancePXE3.methods
-      .get_balance(admin, aliceAddress)
+    const current_balance_alice_owner = await contractInstancePXE3.methods
+      .get_balance(owner, aliceAddress)
       .simulate();
-    console.log("current_balance_alice_admin", current_balance_alice_admin);
+    console.log("current_balance_alice_owner", current_balance_alice_owner);
 
-    const current_balance_bob_admin = await contractInstancePXE3.methods
-      .get_balance(admin, bobAddress)
+    const current_balance_bob_owner = await contractInstancePXE3.methods
+      .get_balance(owner, bobAddress)
       .simulate();
-    console.log("current_balance_bob_admin", current_balance_bob_admin);
+    console.log("current_balance_bob_owner", current_balance_bob_owner);
 
     const set_up_group_payments = await contractInstancePXE3.methods
-      .setup_group_payments(admin, [aliceAddress, bobAddress], 150)
+      .setup_group_payments(owner, [aliceAddress, bobAddress], 150)
       .send()
       .wait();
     console.log("set_up_group_payments", set_up_group_payments);
 
-    const balance_alice_admin = await contractInstancePXE3.methods
-      .get_balance(admin, aliceAddress)
+    const balance_alice_owner = await contractInstancePXE3.methods
+      .get_balance(owner, aliceAddress)
       .simulate();
-    console.log("balance_alice_admin", balance_alice_admin);
-    expect(balance_alice_admin).toBe(current_balance_alice_admin + 50n);
+    console.log("balance_alice_owner", balance_alice_owner);
+    expect(balance_alice_owner).toBe(current_balance_alice_owner + 50n);
 
-    const balance_bob_admin = await contractInstancePXE3.methods
-      .get_balance(admin, bobAddress)
+    const balance_bob_owner = await contractInstancePXE3.methods
+      .get_balance(owner, bobAddress)
       .simulate();
-    expect(balance_bob_admin).toBe(current_balance_bob_admin + 50n);
+    expect(balance_bob_owner).toBe(current_balance_bob_owner + 50n);
   });
 });

@@ -13,7 +13,7 @@ import { SingleKeyAccountContract } from "@aztec/accounts/single_key";
  * @param secret - The Fr secret value used for contract registration.
  * @param accountContract - The AccountGroupContractClass instance used to manage the account contract.
  * @param groupContractWallet - The Wallet instance of the deployed group contract.
- * @param adminWallet - The admin's wallet, an instance of AccountWalletWithSecretKey.
+ * @param ownerWallet - The owner's wallet, an instance of AccountWalletWithSecretKey.
  * @param PXEInstances - An array of PXEWithUrl instances, which represent different PXEs that members may be added to.
  * @param salt - The salt value (Fr) used for contract registration.
  *
@@ -23,10 +23,10 @@ import { SingleKeyAccountContract } from "@aztec/accounts/single_key";
  * - `memberContracts`: An object that maps member names to their corresponding contract instances.
  * - `addMember`: A function to add a new member to the group contract.
  * - `removeMember`: A function to remove a member from the group contract.
- * - `contractInstanceWithWalletAdmin`: The contract instance associated with the admin's wallet.
+ * - `contractInstanceWithWalletOwner`: The contract instance associated with the owner's wallet.
  * 
  * This hook performs the following steps:
- * 1. Initializes the admin member when the component is first mounted.
+ * 1. Initializes the owner member when the component is first mounted.
  * 2. Allows additional members to be added by creating their wallets, registering them, and adding them to the contract.
  * 3. Allows members to be removed from the group contract and their wallets/contracts to be cleaned up.
  */
@@ -35,7 +35,7 @@ export const useAddMembers = (
   secret: Fr,
   accountContract: AccountGroupContractClass,
   groupContractWallet: Wallet,
-  adminWallet: AccountWalletWithSecretKey,
+  ownerWallet: AccountWalletWithSecretKey,
   PXEInstances: PXEWithUrl[],
   salt: Fr
 ) => {
@@ -43,53 +43,53 @@ export const useAddMembers = (
   const [members, setMembers] = useState<string[]>([]);
   const [memberWallets, setMemberWallets] = useState<MemberWallets>({});
   const [memberContracts, setMemberContracts] = useState<MemberContracts>({});
-  const [adminMemberAdded, setAdminMemberAdded] = useState<boolean>(false);
-  const [contractInstanceWithWalletAdmin, setContractInstanceWithWalletAdmin] = useState<AccountGroupContract>();
+  const [ownerMemberAdded, setOwnerMemberAdded] = useState<boolean>(false);
+  const [contractInstanceWithWalletOwner, setContractInstanceWithWalletOwner] = useState<AccountGroupContract>();
 
-  // Automatically add the admin member to the group when the component mounts and the dependencies are ready
+  // Automatically add the owner member to the group when the component mounts and the dependencies are ready
   useEffect(() => {
-    const addAdminMember = async () => {
+    const addOwnerMember = async () => {
       if (
         secret &&
         accountContract &&
         groupContractWallet &&
-        adminWallet &&
-        !adminMemberAdded
+        ownerWallet &&
+        !ownerMemberAdded
       ) {
-        const adminName = "Admin";
+        const ownerName = "Owner";
   
         // Step 1: Retrieve the contract address from the group contract's wallet
         const contractAddress = await groupContractWallet.getAddress();
         console.log("contractAddress", contractAddress);
   
-        // Step 2: Create the contract instance using the admin's wallet
+        // Step 2: Create the contract instance using the owner's wallet
         const contractInstanceWithWallet = await AccountGroupContract.at(
           contractAddress,
           groupContractWallet
         );
 
-        // Step 3: Check if the admin is already a member by viewing the first member in the contract
+        // Step 3: Check if the owner is already a member by viewing the first member in the contract
         const member = await contractInstanceWithWallet.methods.view_member(0).simulate();
         const member0: AztecAddress = member;
         console.log("members", member0.toString());
 
-        // Step 4: Add the admin to the member list and store their wallet/contract instance
-        setMembers((prevMembers) => [...prevMembers, adminName]);
+        // Step 4: Add the owner to the member list and store their wallet/contract instance
+        setMembers((prevMembers) => [...prevMembers, ownerName]);
         setMemberWallets((prev) => ({
           ...prev,
-          [adminName]: { wallet: adminWallet },
+          [ownerName]: { wallet: ownerWallet },
         }));
         setMemberContracts((prev) => ({
           ...prev,
-          [adminName]: { walletInstance: contractInstanceWithWallet },
+          [ownerName]: { walletInstance: contractInstanceWithWallet },
         }));
-        setContractInstanceWithWalletAdmin(contractInstanceWithWallet);
-        setAdminMemberAdded(true); // Mark the admin as added
+        setContractInstanceWithWalletOwner(contractInstanceWithWallet);
+        setOwnerMemberAdded(true); // Mark the owner as added
       }
     };
   
-    addAdminMember();
-  }, [secret, accountContract, groupContractWallet, adminWallet, adminMemberAdded]);
+    addOwnerMember();
+  }, [secret, accountContract, groupContractWallet, ownerWallet, ownerMemberAdded]);
 
   /**
    * Adds a new member to the group contract.
@@ -128,12 +128,12 @@ export const useAddMembers = (
         console.log("memberWallet", memberWallet);
 
         // Step 4: Register the group contract in the member's PXE
-        const adminAddress = await adminWallet.getAddress();
+        const ownerAddress = await ownerWallet.getAddress();
         const accountGroupManager = new AccountGroupManager(
           memberPXE,
           secret,
           accountContract,
-          adminAddress,
+          ownerAddress,
           salt
         );
         await accountGroupManager.register();
@@ -147,23 +147,23 @@ export const useAddMembers = (
         );
         console.log("contractInstanceWithWallet", contractInstanceWithWallet);
 
-        // Step 6: Add the member to the group contract via the admin's contract instance
+        // Step 6: Add the member to the group contract via the owner's contract instance
         const memberAddress = await memberWallet.getAddress();
         console.log("memberAddress", memberAddress.toString());
 
-        if (contractInstanceWithWalletAdmin) {
+        if (contractInstanceWithWalletOwner) {
           console.log("adding member", memberAddress.toString());
-          const tx = await contractInstanceWithWalletAdmin.methods.add_member(memberAddress).send().wait();
+          const tx = await contractInstanceWithWalletOwner.methods.add_member(memberAddress).send().wait();
           console.log("member added to group contract", tx);
 
           //  Check that the member was added correctly, for testing purposes
-          const viewMember = await contractInstanceWithWalletAdmin.methods.view_member(0).simulate();
+          const viewMember = await contractInstanceWithWalletOwner.methods.view_member(0).simulate();
           const member0: AztecAddress = viewMember;
           console.log("viewMember 0 ", member0.toString());
-          const viewMember2 = await contractInstanceWithWalletAdmin.methods.view_member(1).simulate();
+          const viewMember2 = await contractInstanceWithWalletOwner.methods.view_member(1).simulate();
           const member1: AztecAddress = viewMember2;
           console.log("viewMember 1 ", member1.toString());
-          const viewMember3 = await contractInstanceWithWalletAdmin.methods.view_member(2).simulate();
+          const viewMember3 = await contractInstanceWithWalletOwner.methods.view_member(2).simulate();
           const member2: AztecAddress = viewMember3;
           console.log("viewMember 2 ", member2.toString());
         }
@@ -210,6 +210,6 @@ export const useAddMembers = (
     memberContracts,
     addMember,
     removeMember,
-    contractInstanceWithWalletAdmin
+    contractInstanceWithWalletOwner
   };
 };
