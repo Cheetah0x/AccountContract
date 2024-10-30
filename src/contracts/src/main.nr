@@ -2,7 +2,7 @@
 //TODO: Make the account dud, this will involve making the entry point to nothing.
 //TODO: Explore better ways to access gate the account contract
 //TODO: Make it so that you can send notes when adding members to improve the UX of adding members, not currently possible with the current note system
-//TODO: Testing with the TXE
+//TODO: Testing with the TXE, not able to do this yet. 
 //TODO: Change the member_balances to a PrivateMutable note instead of a PrivateSet,
 //      The ValueNote helpers are designed for PrivateSet so that is being used for now
 //TODO: Split the logic into two contracts, one for the account and one for the group, that only the account can access.
@@ -17,46 +17,44 @@ use dep::aztec::macros::aztec;
 #[aztec]
 contract AccountGroup {
 
-    use dep::aztec::prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PublicMutable, PrivateSet, PrivateMutable};
-    use dep::aztec::encrypted_logs::encrypted_note_emission::{encode_and_encrypt_note, encode_and_encrypt_note_unconstrained};
+    use dep::aztec::{prelude::{Map, AztecAddress, PrivateContext, PrivateImmutable, PrivateSet}, 
+                    encrypted_logs::encrypted_note_emission::{encode_and_encrypt_note, encode_and_encrypt_note_unconstrained},
+                    keys::getters::get_public_keys,
+                    oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness,
+                    macros::{storage::storage, functions::{private, initializer, view, noinitcheck}},
+                    note::note_getter::NoteGetterOptions
+                    };
     use dep::authwit::{
         entrypoint::{app::AppPayload, fee::FeePayload}, account::AccountActions,
         auth_witness::get_auth_witness
     };
-    use dep::aztec::{hash::compute_siloed_nullifier, keys::getters::get_public_keys};
-    use dep::aztec::oracle::get_nullifier_membership_witness::get_low_nullifier_membership_witness;
-    use dep::aztec::macros::{storage::storage, functions::{private, initializer, view, noinitcheck}};
-    // use value_note::{balance_utils, utils::{increment, decrement}, value_note::ValueNote};
-    use address_note::address_note::AddressNote;
-    use crate::notes::{public_key_note::PublicKeyNote, NewAddressNote::NewAddressNote};
 
+    // use value_note::{balance_utils, utils::{increment, decrement}, value_note::ValueNote};
+    use crate::notes::{public_key_note::PublicKeyNote, NewAddressNote::NewAddressNote};
     use crate::helpers::{increment, decrement, membership_check, membership_check_multiple};
     use value_note::{value_note::ValueNote};
     use std::hash::poseidon2;
-    use std::hash::pedersen_hash;
-    use aztec::note::note_getter::NoteGetterOptions;
 
     global ZERO_ADDRESS: AztecAddress = AztecAddress::from_field(0x0000000000000000000000000000000000000000000000000000000000000000);
 
     #[storage]
     struct Storage<Context> {
         signing_public_key: PrivateImmutable<PublicKeyNote, Context>, //Stores the public key for the Schnorr account (immutably)
-        admin: PrivateImmutable<NewAddressNote, Context>, //Stores the admin address (immutably)
         group_members: PrivateSet<NewAddressNote, Context>, //Stores the group members (privately)
         member_balances : Map<Field, PrivateSet<ValueNote, Context>, Context>, //Stores the balances of the group members (privately)
     }
 
     /**
-    * Constructor: Initializes the contract with a signing public key, admin address
+    * Constructor: Initializes the contract with a signing public key, owner address
     *
     * @param signing_pub_key_x - The x coordinate of the public key for the Schnorr signature
     * @param signing_pub_key_y - The y coordinate of the public key for the Schnorr signature
-    * @param admin - The admin address
+    * @param owner - The owner address
     */
 
     #[private]
     #[initializer]
-    fn constructor(signing_pub_key_x: Field, signing_pub_key_y: Field, admin: AztecAddress) {
+    fn constructor(signing_pub_key_x: Field, signing_pub_key_y: Field, owner: AztecAddress) {
         let this = context.this_address();
         let this_keys = get_public_keys(this);
         //not emitting outgoing for msg_sender here to not have to register keys for the contract through which we deploy this (typically MultiCallEntryPoint).
@@ -72,27 +70,15 @@ contract AccountGroup {
                 this
             ));
 
-        //Initialize the admin note and emit the encrypted note
-        let mut admin_address_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
-        storage.admin
-            .initialize(&mut admin_address_note)
-            .emit(encode_and_encrypt_note_unconstrained(
-                &mut context,
-                this_keys.ovpk_m,
-                this_keys.ivpk_m,
-                admin
-            )
-        );
-
-        //Add the admin to the group members set.
-        let mut admin_member_note = NewAddressNote::new(admin, this_keys.npk_m.hash());
+        //Add the owner to the group members set.
+        let mut owner_member_note = NewAddressNote::new(owner, this_keys.npk_m.hash());
         storage.group_members
-            .insert(&mut admin_member_note)
+            .insert(&mut owner_member_note)
             .emit(encode_and_encrypt_note_unconstrained(
                 &mut context,
                 this_keys.ovpk_m,
                 this_keys.ivpk_m,
-                admin
+                owner
             )
         );
     }
@@ -109,18 +95,6 @@ contract AccountGroup {
     }
 
     /**
-     * Retrieves the admin address of the contract.
-     * 
-     * @returns {AztecAddress} The admin's Aztec address.
-     */
-    #[private]
-    #[view]
-    fn get_admin() -> pub AztecAddress {
-        let admin_note = storage.admin.get_note();
-        admin_note.address
-    }
-
-    /**
      * Adds a member to the group.
      * In the future this can be improved to send the member a note to register in their PXE, currently not possible with the current note system.
      * 
@@ -133,7 +107,7 @@ contract AccountGroup {
         let contract_address_keys = get_public_keys(contract_address);
         let mut member_address_note = NewAddressNote::new(member, contract_address_keys.npk_m.hash());
         storage.group_members.insert(&mut member_address_note).emit(
-            encode_and_encrypt_note(
+            encode_and_encrypt_note_unconstrained(
                 &mut context,
                 contract_address_keys.ovpk_m,
                 contract_address_keys.ivpk_m,
@@ -251,8 +225,6 @@ contract AccountGroup {
     fn get_balance(creditor: AztecAddress, debtor: AztecAddress) -> Field {
         let contract_address = context.this_address();
         assert(context.msg_sender() == contract_address, "Only the contract can call this function");
-        let location = storage.group_members;
-        assert(membership_check(creditor, debtor, contract_address, location), "Creditor or debtor are not in the group");
 
         let hash_inputs = [creditor.to_field(), debtor.to_field()];
         let key = poseidon2::Poseidon2::hash(hash_inputs, 2);
