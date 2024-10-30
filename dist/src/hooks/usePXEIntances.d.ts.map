@@ -1,1 +1,1 @@
-{"version":3,"file":"usePXEIntances.d.ts","sourceRoot":"","sources":["../../../src/hooks/usePXEIntances.tsx"],"names":[],"mappings":"AAEA,OAAO,EAAE,UAAU,EAAE,MAAM,eAAe,CAAC;AAE3C,eAAO,MAAM,eAAe,oBAY3B,CAAC"}
+{"version":3,"file":"usePXEIntances.d.ts","sourceRoot":"","sources":["../../../src/hooks/usePXEIntances.tsx"],"names":[],"mappings":"AAAA,OAAO,EAAE,eAAe,EAAE,MAAM,iBAAiB,CAAC;AAGlD,MAAM,WAAW,UAAU;IACzB,GAAG,EAAE,UAAU,CAAC,OAAO,eAAe,CAAC,CAAC;IACxC,GAAG,EAAE,MAAM,CAAC;CACb;AAED;;;;;;;;;;;;GAYG;AAEH,eAAO,MAAM,eAAe,QAAO,UAAU,EAoB5C,CAAC"}

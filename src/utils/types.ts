@@ -15,7 +15,7 @@ import { Salt } from "@aztec/aztec.js/account";
 import {
   AccountGroupContractArtifact,
   AccountGroupContract,
-} from "@/contracts/src/artifacts/AccountGroup";
+} from "@/groupaccount/src/artifacts/AccountGroup";
 import { DefaultAccountContract } from "@aztec/accounts/defaults";
 
 export interface Expense {

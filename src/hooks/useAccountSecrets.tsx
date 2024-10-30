@@ -1,7 +1,7 @@
 // useAccountSecrets.ts
 import { useState, useEffect } from "react";
 import { Fq, Fr } from "@aztec/aztec.js";
-import { generatePublicKeys } from "@/contracts/src/test/utils";
+import { generatePublicKeys } from "@/groupaccount/src/test/utils";
 
 /**
  * Hook to generate and manage the secrets required for registering
