@@ -40,6 +40,7 @@ export default function Dashboard() {
   const { ownerWallet, createNewWallet, wait: accountWait } = useAccountCreation(ownerPXE);
 
   // Initialize owner wallet when secrets are ready
+  // Not obeying the rules of hook, ok for demo
   useEffect(() => {
     const setup = async () => {
 

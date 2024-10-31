@@ -1,10 +1,10 @@
 # Aztec Shared State Proof of Concept
 
-This proof-of-concept app demonstrates how users can share state using Aztec’s native Account Abstraction. The smart contract is a Schnorr Account containing logic for a simple expense-tracking app, similar to Splitwise.
+This proof-of-concept app demonstrates how users can share state using Aztec’s native Account Abstraction. The smart contract is a Schnorr Account containing logic for a simple expense-tracking app between trusted parties.
 
 The project includes end-to-end tests and a demo frontend built with vanilla React and Webpack.
 
-**Note**: The current contract uses Aztec-nargo version 0.59.0.
+**Note**: The current contract uses Aztec-nargo version 0.60.0.
 
 ## Getting Started
 
@@ -39,10 +39,36 @@ Download and set up the Aztec Sandbox:
 
 Refer to the Aztec Getting Started Guide for instructions.
 
+4. **Installing the Aztec Sandbox** .
+
+```bash
+
+    bash -i <(curl -s https://install.aztec.network)
+
+```
+
 ## Run multiple PXE instances:
 
-Follow the Aztec Guide on Running Multiple PXEs.
+Follow the Aztec Guide on Running Multiple PXEs. For more information visit,
 https://docs.aztec.network/guides/developer_guides/local_env/run_more_than_one_pxe_sandbox
+
+For the First PXE
+
+```bash
+cd ~/.aztec && docker-compose -f ./docker-compose.sandbox.yml up
+```
+
+For the second PXE
+
+```bash
+aztec start --port 8081 --pxe nodeUrl=http://host.docker.internal:8080/
+```
+
+For the third PXE
+
+```bash
+aztec start --port 8082 --pxe nodeUrl=http://host.docker.internal:8080/
+```
 
 ## Generate Artifact
 

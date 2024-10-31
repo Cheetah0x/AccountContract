@@ -145,14 +145,14 @@ export class AccountGroupManager extends AccountManager {
    * @param secretKey - The Fr object representing the secret key of the account.
    * @param accountGroupContract - An instance of the AccountGroupContractClass used for account deployment.
    * @param owner - The owner AztecAddress for the group account.
-   * @param salt - Optional salt value for the account (default is undefined).
+   * @param salt - Salt value for the account
    */
   constructor(
     pxe: PXE,
     secretKey: Fr,
     accountGroupContract: AccountGroupContractClass,
     owner: AztecAddress,
-    salt?: Salt
+    salt: Salt
   ) {
     super(pxe, secretKey, accountGroupContract, salt); // Call the parent class constructor.
     this.owner = owner;
