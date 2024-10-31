@@ -3,7 +3,7 @@
 import { useState} from 'react';
 import { AccountWalletWithSecretKey, AztecAddress,  DeployAccountOptions, Fq, Fr, PXE, Wallet } from '@aztec/aztec.js';
 import { AccountGroupContractClass, AccountGroupManager } from '@/utils/types';
-import { AccountGroupContract } from '@/groupaccount/src/artifacts/AccountGroup';
+import { AccountGroupContract } from '@/circuits/src/artifacts/AccountGroup';
 
 /**
  * Custom hook to handle the registration and deployment of the AccountGroup contract in Aztec.

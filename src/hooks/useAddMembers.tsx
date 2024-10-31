@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AccountWalletWithSecretKey, PXE, Fr, Fq, deriveMasterIncomingViewingSecretKey, AztecAddress, Wallet } from "@aztec/aztec.js";
 import { MemberWallets, MemberContracts, PXEWithUrl } from "@/utils/types";
 import { AccountManager } from "@aztec/aztec.js";
-import { AccountGroupContract} from "@/groupaccount/src/artifacts/AccountGroup";
+import { AccountGroupContract} from "@/circuits/src/artifacts/AccountGroup";
 import { AccountGroupContractClass, AccountGroupManager } from "@/utils/types";
 import { SingleKeyAccountContract } from "@aztec/accounts/single_key";
 

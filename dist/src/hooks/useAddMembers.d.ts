@@ -1,6 +1,6 @@
 import { AccountWalletWithSecretKey, Fr, Wallet } from "@aztec/aztec.js";
 import { MemberWallets, MemberContracts, PXEWithUrl } from "@/utils/types";
-import { AccountGroupContract } from "@/groupaccount/src/artifacts/AccountGroup";
+import { AccountGroupContract } from "@/circuits/src/artifacts/AccountGroup";
 import { AccountGroupContractClass } from "@/utils/types";
 /**
  * Hook to manage the addition of members to the group contract.

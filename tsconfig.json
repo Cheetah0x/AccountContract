@@ -28,8 +28,8 @@
   "include": [
     "src/**/*.ts*",
     "test/**/*.ts",
-    "src/groupaccount/target/*.json",
+    "src/circuits/target/*.json",
     "artifacts/**/*.ts",
-    "src/groupaccount/src/test/**/*.ts"
+    "src/circuits/src/test/**/*.ts"
   ]
 }

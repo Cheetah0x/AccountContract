@@ -7,9 +7,9 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "clean": "rm -rf ./src/artifacts ./target",
-    "codegen": "aztec codegen ./src/groupaccount/target --outdir src/groupaccount/src/artifacts",
-    "compile": "cd src/groupaccount && ${AZTEC_NARGO:-aztec-nargo} compile && cd .. && cd ..",
+    "clean": "rm -rf ./src/circuits/src/artifacts ./target",
+    "codegen": "aztec codegen ./src/circuits/target --outdir src/circuits/src/artifacts",
+    "compile": "cd src/circuits && ${AZTEC_NARGO:-aztec-nargo} compile && cd .. && cd ..",
     "deploy": "node --loader ts-node/esm scripts/deploy.ts",
     "build": "webpack --mode production --config webpack.config.mjs",
     "get-block": "node --loader ts-node/esm scripts/getBlock.ts",
